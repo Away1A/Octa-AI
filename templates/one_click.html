@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One-Click Test Automation</title>
+    <link rel="stylesheet" href="/static/one_click.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> <!-- Library jQuery -->
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <img src="../static/OCTA-removebg.png" alt="OCTA: One Click Testing Automation"
+                style="width: 50%; max-height: 150px;">
+        </header>
+
+        <!-- Form untuk upload file Gherkin, URL login, dan URL target -->
+        <main>
+            <section class="section-form">
+                <form id="testForm" action="/one_click" method="post" enctype="multipart/form-data">
+                    <!-- Input untuk Login URL -->
+                    <label for="url">Login URL:</label>
+                    <input type="text" id="url" name="url" placeholder="Enter Login URL" required><br><br>
+
+                    <!-- Input untuk Target URL -->
+                    <label for="target_url">Target URL:</label>
+                    <input type="text" id="target_url" name="target_url" placeholder="Enter Target URL"
+                        required><br><br>
+
+                    <!-- Input untuk Upload File -->
+                    <label for="feature_file"><strong>Upload Gherkin File (.feature)</strong></label><br>
+                    <input type="file" id="feature_file" name="feature_file" accept=".feature" required><br><br>
+
+                    <button type="submit" class="button">Upload and Run Tests</button>
+                </form>
+            </section>
+
+            <!-- Tracker Progres -->
+            <section class="progress-tracker">
+                <div class="step" id="step-upload">
+                    <div class="icon pending">1</div>
+                    <p>Upload File</p>
+                </div>
+                <div class="step" id="step-validate">
+                    <div class="icon pending">2</div>
+                    <p>Generated</p>
+                </div>
+                <div class="step" id="step-generate">
+                    <div class="icon pending">3</div>
+                    <p>Test Script</p>
+                </div>
+                <div class="step" id="step-test">
+                    <div class="icon pending">4</div>
+                    <p>Finish</p>
+                </div>
+            </section>
+
+            <!-- Output Gherkin -->
+            {% if gherkin_content %}
+            <section class="output-section">
+                <h2>Gherkin Content</h2>
+                <textarea readonly>{{ gherkin_content }}</textarea>
+            </section>
+            {% endif %}
+
+            <!-- Output Selenium Script -->
+            {% if selenium_script %}
+            <section class="output-section">
+                <h2>Generated Selenium Script</h2>
+                <textarea readonly>{{ selenium_script }}</textarea>
+            </section>
+            {% endif %}
+
+            <!-- Output Test -->
+            {% if test_output %}
+            <section class="output-section">
+                <h2>Test Output</h2>
+                <textarea readonly>{{ test_output }}</textarea>
+                <button id="downloadPdf" class="button">Download PDF Report</button>
+            </section>
+            {% endif %}
+
+            <!-- Screenshots -->
+            {% if screenshots %}
+            <section class="output-section">
+                <h2>Screenshots</h2>
+                <button id="toggleScreenshots">Show Screenshots</button>
+                <div id="screenshotsContainer" style="display: none;">
+                    {% for screenshot in screenshots %}
+                    <div class="screenshot">
+                        <!-- Menampilkan gambar dengan URL yang benar -->
+                        <img src="{{ url_for('static', filename='screenshot/' ~ screenshot) }}" alt="Test Screenshot"
+                            style="max-width: 100%; height: auto;">
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Test History -->
+            {% if test_history %}
+            <section class="output-section">
+                <h2>Test History</h2>
+                <table id="testHistoryTable">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Filename</th>
+                            <th>Status</th>
+                            <th>Execution Time (seconds)</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for test in test_history %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ test.filename }}</td>
+                            <td>{{ test.result }}</td>
+                            <td>{{ "{:.2f}".format(test.execution_time) }}</td>
+                            <td>{{ test.start_time }}</td>
+                            <td>{{ test.end_time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div id="paginationControls" class="pagination-controls"></div>
+            </section>
+            {% endif %}
+        </main>
+
+        <footer>
+            <a href="/" class="back-button">Back to Dashboard</a>
+        </footer>
+    </div>
+
+    <script>
+        // Inisialisasi tombol untuk toggle screenshot
+        $(document).on('click', '#toggleScreenshots', function () {
+            var container = $('#screenshotsContainer');
+            var isVisible = container.is(':visible');
+
+            if (isVisible) {
+                container.slideUp(3000); // Sembunyikan dengan animasi selama 3 detik
+                $(this).text('Show Screenshots'); // Ubah teks tombol
+            } else {
+                container.slideDown(3000); // Tampilkan dengan animasi selama 3 detik
+                $(this).text('Hide Screenshots'); // Ubah teks tombol
+            }
+        });
+
+
+        $(document).ready(function () {
+            const rowsPerPage = 5; // Maksimal 5 entri per halaman
+            const table = $('#testHistoryTable');
+            const tbody = table.find('tbody');
+            const rows = tbody.find('tr');
+            const totalRows = rows.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            function showPage(page) {
+                const startIndex = (page - 1) * rowsPerPage;
+                const endIndex = startIndex + rowsPerPage;
+
+                rows.hide();
+                rows.slice(startIndex, endIndex).show();
+
+                // Perbarui nomor berdasarkan halaman saat ini
+                rows.slice(startIndex, endIndex).each(function (index) {
+                    $(this).find('td:first').text(startIndex + index + 1); // Atur kolom "No" sesuai urutan
+                });
+
+                $('.pagination-controls .page-number').removeClass('active');
+                $(`.pagination-controls .page-number[data-page="${page}"]`).addClass('active');
+            }
+
+
+            function setupPagination() {
+                const paginationControls = $('#paginationControls');
+                paginationControls.empty(); // Kosongkan kontrol sebelumnya
+
+                for (let i = 1; i <= totalPages; i++) {
+                    const pageButton = $('<span>')
+                        .addClass('page-number')
+                        .text(i)
+                        .attr('data-page', i)
+                        .click(function () {
+                            const page = $(this).data('page');
+                            showPage(page);
+                        });
+                    paginationControls.append(pageButton);
+                }
+            }
+
+            // Inisialisasi tabel dan pagination
+            setupPagination();
+            showPage(1); // Tampilkan halaman pertama secara default
+        });
+
+        // Ajax script
+        $(document).ready(function () {
+            $('#testForm').submit(function (event) {
+                event.preventDefault(); // Mencegah form mengirim data secara default
+
+                var formData = new FormData(this);
+
+                // Fungsi untuk memperbarui status langkah
+                function updateStep(stepId) {
+                    $('.step .icon').removeClass('active done').addClass('pending');
+                    $(`#${stepId} .icon`).removeClass('pending').addClass('active');
+                    $(`#${stepId}`).prevAll().find('.icon').removeClass('pending active').addClass('done');
+                }
+
+                updateStep("step-upload"); // Langkah pertama (upload)
+                setTimeout(function () {
+                    updateStep("step-validate");  // Langkah kedua (Generated)
+                }, 4000);
+
+                $.ajax({
+                    url: '/one_click',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                        updateStep("step-validate"); // Langkah kedua
+
+                        // Tunggu sebentar untuk simulasi waktu validasi
+                        setTimeout(() => {
+                            updateStep("step-generate"); // Langkah ketiga
+
+                            // Simulasi waktu generasi script
+                            setTimeout(() => {
+                                updateStep("step-test"); // Langkah keempat
+
+                                // Fungsi untuk mengunduh laporan PDF
+                                $(document).on('click', '#downloadPdf', function () {
+                                    const pdfFilename = response.pdf_report; // Nama file yang dikirim dari server
+                                    const downloadUrl = `${window.location.origin}/download_report/${pdfFilename}`;
+                                    window.location.href = downloadUrl; // Pastikan hanya ada satu prefix
+                                });
+
+                                // Render output ke halaman setelah proses selesai
+                                let seleniumHtml = `
+                            <h2>Generated Selenium Script</h2>
+                            <textarea readonly>${response.selenium_script}</textarea>
+                        `;
+
+                                let testOutputHtml = `
+                            <h2>Test Output</h2>
+                            <textarea readonly>${response.test_output}</textarea>
+                            <button id="downloadPdf" class="button">Download PDF Report</button>
+                        `;
+
+                                let screenshotsHtml = '';
+                                if (response.screenshots && response.screenshots.length > 0) {
+                                    screenshotsHtml = `
+                                <div class="output-section">
+                                    <h2>Screenshots</h2>
+                                    <button id="toggleScreenshots">Show Screenshots</button>
+                                    <div id="screenshotsContainer" style="display: none;">
+                                        ${response.screenshots.map(screenshot => `
+                                            <div class="screenshot">
+                                                <img src="${window.location.origin}/${screenshot}" alt="Test Screenshot" style="max-width: 100%; height: auto;">
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                                }
+
+                                // Update bagian output
+                                $('.output-section').html(seleniumHtml + testOutputHtml + screenshotsHtml);
+
+                                // Update tabel Test History jika tersedia
+                                if (response.test_history && response.test_history.length > 0) {
+                                    let historyHtml = response.test_history.map((test, index) => `
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td>${test.filename}</td>
+                                    <td>${test.result}</td>
+                                    <td>${parseFloat(test.execution_time).toFixed(2)}</td>
+                                    <td>${test.start_time}</td>
+                                    <td>${test.end_time}</td>
+                                </tr>
+                            `).join('');
+
+                                    $('#testHistoryTable tbody').html(historyHtml);
+
+                                    // Setup ulang pagination untuk tabel history
+                                    setupPagination(); // Fungsi ini diambil dari script pagination Anda
+                                    showPage(1); // Tampilkan halaman pertama
+                                }
+                            }, 1500); // Simulasi waktu untuk tes berjalan
+                        }, 1000); // Simulasi waktu untuk validasi
+                    },
+                    error: function () {
+                        alert('There was an error processing your request.');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

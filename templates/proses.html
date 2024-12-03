@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One-Click Automation Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #eaeef1;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            max-width: 1000px;
+            margin: auto;
+            padding: 30px;
+            text-align: center;
+        }
+        h1 {
+            color: #4a90e2;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        .description {
+            color: #555;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        .action-card {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+        .action-card h2 {
+            color: #4a90e2;
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+        .upload-form {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .upload-form input[type="file"] {
+            padding: 8px;
+            font-size: 1em;
+            margin-right: 15px;
+        }
+        .upload-form button {
+            background-color: #4a90e2;
+            color: #ffffff;
+            font-size: 1em;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .upload-form button:hover {
+            background-color: #3b7dc4;
+        }
+        .output-section {
+            text-align: left;
+            margin-top: 20px;
+        }
+        .output-section h3 {
+            font-size: 1.4em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .output-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            color: #333;
+            overflow-x: auto;
+            max-height: 200px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>One-Click Automation Dashboard</h1>
+    <p class="description">Upload your Gherkin file, and let the application handle conversion, cleaning, and testing in a single click.</p>
+
+    <div class="action-card">
+        <h2>Upload & Run Automation</h2>
+        <form action="/process_gherkin" method="POST" enctype="multipart/form-data">
+            <div class="upload-form">
+                <input type="file" name="feature_file" accept=".feature" required>
+                <button type="submit">Start Automation</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Output Sections -->
+    <div class="output-section">
+        {% if gherkin_content %}
+            <h3>Gherkin Content</h3>
+            <div class="output-box">{{ gherkin_content }}</div>
+        {% endif %}
+        {% if selenium_script %}
+            <h3>Generated Selenium Script</h3>
+            <div class="output-box">{{ selenium_script }}</div>
+        {% endif %}
+        {% if cleaned_code %}
+            <h3>Cleaned Selenium Code</h3>
+            <div class="output-box">{{ cleaned_code }}</div>
+        {% endif %}
+        {% if test_output %}
+            <h3>Test Output</h3>
+            <div class="output-box">{{ test_output }}</div>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

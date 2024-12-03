@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regex Cleaner</title>
+    <link rel="stylesheet" href="/static/regex.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Regex File Cleaner</h2>
+        <form method="POST" action="/regex" enctype="multipart/form-data">
+            <label for="feature_file">Upload .feature file:</label>
+            <input type="file" name="selenium_file" accept=".py" required>
+            <button type="submit">Bersihkan File</button>
+        </form>
+        
+        {% if cleaned_code %}
+            <h3>Hasil Kode yang Sudah Dibersihkan:</h3>
+            <pre>{{ cleaned_code }}</pre>
+
+            <!-- Custom Filename Input and Download Button -->
+            <div style="margin-top: 20px;">
+                <label for="filename">Custom Filename:</label>
+                <input type="text" id="filename" name="filename" placeholder="cleaned_file.py" required>
+                <button type="button" onclick="downloadCleanedFile()">Download</button>
+            </div>
+        {% endif %}
+        
+        <!-- Tombol Kembali ke Dashboard -->
+        <a href="/" class="back-button">Kembali ke Dashboard</a>
+    </div>
+
+    <script>
+        function downloadCleanedFile() {
+            // Get cleaned code and filename
+            const cleanedCode = `{{ cleaned_code | tojson }}`;  // Use Flask's tojson filter to escape special characters
+            const filename = document.getElementById('filename').value || 'cleaned_file.py';
+
+            // Create a Blob with the cleaned code
+            const blob = new Blob([cleanedCode], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+
+            // Create a temporary anchor element for downloading
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

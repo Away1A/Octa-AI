@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Automation Testing</h1>
+        <p>Select an option to proceed</p>
+
+        <div class="menu-container">
+            <!-- Gherkin Generate Option -->
+            <div class="menu-item" onclick="location.href='/index'">
+                <img src="../static/gherkin.png" alt="Gherkin">
+                <h2>Gherkin Generate</h2>
+                <p>Generate automated test scripts from Gherkin scenarios for efficient behavior-driven development (BDD) testing.</p>
+            </div>
+
+            <!-- Regex Script Option -->
+            <div class="menu-item" onclick="location.href='/regex'">
+                <img src="../static/regex.png" alt="Regex Script">
+                <h2>Regex Script</h2>
+                <p>Create or customize scripts using regex patterns for matching and parsing specific text data in tests.</p>
+            </div>
+
+            <!-- Selenium Testing Option -->
+            <div class="menu-item" onclick="location.href='/test'">
+                <img src="../static/selenium.png" alt="Selenium Testing">
+                <h2>Selenium Testing</h2>
+                <p>Automate browser testing using Selenium for UI validation and interaction testing across web applications.</p>
+            </div>
+
+            <!-- New Testing Option -->
+            <div class="menu-item" onclick="location.href='/one_click'">
+                <img src="../static/HRIS.png" alt="One Click Testing">
+                <h2>O C T A</h2>
+                <p>Explore the latest feature added for enhanced testing capabilities and streamlined test management.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

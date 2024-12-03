@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Pytest</title>
+  <link rel="stylesheet" href="/static/test.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Run Pytest</h1>
+    <p>Upload file .py untuk menjalankan pytest</p>
+    <form action="/test" method="post" enctype="multipart/form-data">
+      <input type="file" name="pytest_file" accept=".py" required>
+      <button type="submit">Run Tests</button>
+    </form>
+    {% if test_output %}
+    <div class="output-area">
+      <h2>Test Output:</h2>
+      <pre>{{ test_output }}</pre>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>

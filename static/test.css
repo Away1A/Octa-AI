@@ -1,0 +1,87 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f3f4f6;
+}
+
+.container {
+    width: 80%;
+    max-width: 700px;
+    padding: 20px;
+    background: #ffffff;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    text-align: center;
+}
+
+h1 {
+    color: #333333;
+    margin-bottom: 10px;
+}
+
+p {
+    color: #666666;
+    margin-bottom: 20px;
+}
+
+form {
+    margin-bottom: 20px;
+}
+
+input[type="file"] {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #dddddd;
+    font-size: 16px;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.output-area {
+    margin-top: 20px;
+    text-align: left;
+}
+
+.output-area h2 {
+    font-size: 18px;
+    color: #333333;
+    margin-bottom: 10px;
+}
+
+.output-area pre {
+    background: #f0f0f0;
+    padding: 15px;
+    border-radius: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 14px;
+    font-family: "Courier New", monospace;
+    color: #444444;
+    white-space: pre-wrap;
+    /* Membuat teks dapat wrap secara otomatis */
+    word-wrap: break-word;
+    /* Mencegah teks yang panjang keluar dari kotak */
+    border: 1px solid #cccccc;
+}

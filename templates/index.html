@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gherkin to Selenium Converter</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="background">
+        <div class="container">
+                <!-- Button to go back to dashboard -->
+        <div class="back-button-container">
+            <button id="back-to-dashboard" onclick="location.href='/'">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </button>
+        </div>
+            <h1>Upload .feature File to Convert to Selenium Script</h1>
+            <form action="/index" method="post" enctype="multipart/form-data" class="upload-form" id="upload-form">
+                <input type="file" name="feature_file" accept=".feature" class="file-input" id="file-input">
+                <input type="submit" value="Convert" class="submit-button">
+            </form>
+            {% if gherkin_content %}
+                <h2>File Preview</h2>
+                <textarea id="file-preview" class="file-preview" readonly>{{ gherkin_content }}</textarea>
+                <h2>Generated Selenium Script</h2>
+                <textarea id="selenium-output" class="selenium-output" readonly>{{ selenium_script }}</textarea>
+                <button id="download-button" class="download-button">Download Script</button>
+            {% endif %}
+            <p class="note">Supported file format: .feature</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('download-button').addEventListener('click', function() {
+            const script = document.getElementById('selenium-output').value;
+            const blob = new Blob([script], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = 'generated_script.py'; // Ganti dengan nama file yang diinginkan
+            link.click();
+        });
+    </script>
+</body>
+</html>

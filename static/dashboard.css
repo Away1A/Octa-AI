@@ -1,0 +1,219 @@
+/* Reset default browser styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Fullscreen layout for dashboard */
+body,
+html {
+    height: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: url('../static/bg.jpg') no-repeat center center fixed;
+    background-size: cover;
+    overflow: hidden;
+}
+
+/* Overlay for transparency */
+.container {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 50px;
+    margin: 60px auto;
+    max-width: 900px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    animation: fadeInUp 1s ease-in-out;
+    /* Initial load animation */
+}
+
+/* Main title */
+h1 {
+    font-size: 36px;
+    color: #333;
+    margin-bottom: 20px;
+    font-weight: bold;
+    opacity: 0;
+    animation: fadeIn 1.2s ease forwards;
+}
+
+/* Subtitle */
+p {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeIn 1.4s ease forwards;
+}
+
+/* Menu container */
+.menu-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 30px;
+    opacity: 0;
+    animation: fadeInUp 1.6s ease forwards;
+}
+
+/* Individual menu items */
+.menu-item {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    width: 250px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    animation: pulse 1.8s infinite;
+    /* Pulse effect */
+}
+
+.menu-item img {
+    max-width: 100px;
+    margin-bottom: 20px;
+    transition: transform 0.3s ease;
+}
+
+.menu-item h2 {
+    font-size: 24px;
+    color: #007bff;
+    margin-bottom: 10px;
+    transition: color 0.3s ease;
+}
+
+.menu-item p {
+    font-size: 16px;
+    color: #555;
+    transition: color 0.3s ease;
+}
+
+/* Hover effects for menu items */
+.menu-item:hover {
+    transform: scale(1.2) rotate(5deg);
+    /* Membesar dan sedikit berputar */
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 0 15px #007bff;
+    /* Bayangan dengan glowing effect */
+    z-index: 2;
+}
+
+.menu-item:hover img {
+    transform: rotate(360deg);
+    /* Rotasi penuh gambar */
+}
+
+.menu-item:hover h2 {
+    color: #0056b3;
+}
+
+.menu-item:hover p {
+    color: #333;
+}
+
+/* Pulse animation */
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Fade-in animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Slide-up animation for container */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .menu-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+}
+
+/* Container for logout button */
+.logout-container {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* Styling for the logout button */
+#logout-button {
+    padding: 22px 34px;
+    background-color: #ff4b5c;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#logout-button:hover {
+    background-color: #ff1e35;
+    transform: translateY(-3px);
+}
+
+/* New Kong section styling */
+.kong-container {
+    margin-top: 40px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.kong-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.kong-info img {
+    max-width: 100px;
+    height: auto;
+}
+
+.kong-info p {
+    font-size: 16px;
+    color: #333;
+}
+
+.kong-info a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.kong-info a:hover {
+    text-decoration: underline;
+}

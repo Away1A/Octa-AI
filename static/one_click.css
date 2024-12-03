@@ -1,0 +1,422 @@
+/* Importing fonts for a more elegant design */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Playfair+Display:wght@500&display=swap');
+
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background: linear-gradient(135deg, #d4e2ec, #e8f0f8);
+    color: #333;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    position: center;
+}
+
+/* Adding animated background shapes */
+body::before {
+    content: '';
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    background: rgba(46, 74, 99, 0.15);
+    top: -100px;
+    left: -100px;
+    border-radius: 50%;
+    animation: moveShape 10s infinite alternate ease-in-out;
+}
+
+body::after {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    background: rgba(59, 90, 122, 0.2);
+    bottom: -100px;
+    right: -50px;
+    border-radius: 50%;
+    animation: moveShape 12s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes moveShape {
+    0% {
+        transform: translateX(0) translateY(0);
+    }
+
+    100% {
+        transform: translateX(20px) translateY(20px);
+    }
+}
+
+.container {
+    max-width: 1200px; /* Perbesar lebar maksimum */
+    margin: 50px auto;
+    padding: 50px 60px; /* Tambah padding untuk ruang lebih */
+    background-color: #ffffff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    text-align: center;
+    transform: scale(1);
+    animation: fadeIn 0.7s ease;
+}
+
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+h1 {
+    font-family: 'Playfair Display', serif; 
+    font-size: 40px; 
+    color: #ffffff; 
+    margin: 0; 
+    letter-spacing: 2px; 
+    font-weight: 700; 
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3); 
+    text-transform: uppercase; 
+}
+
+
+h2 {
+    font-family: 'Playfair Display', serif;
+    color: #2e4a63;
+    font-size: 24px;
+    border-bottom: 2px solid #2e4a63;
+    padding-bottom: 10px;
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+    margin-top: 10px;
+    padding: 12px;
+    font-size: 15px;
+    line-height: 1.6;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    background-color: #f8fafc;
+    color: #4a4a4a;
+    font-family: 'Courier New', Courier, monospace;
+    transition: border-color 0.3s ease;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #2e4a63;
+    box-shadow: 0 0 8px rgba(46, 74, 99, 0.2);
+}
+
+.button,
+.back-button {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #ffffff;
+    background-color: #2e4a63;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    margin: 10px 5px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.button:hover,
+.back-button:hover {
+    background-color: #3b5a7a;
+    box-shadow: 0 5px 15px rgba(59, 90, 122, 0.3);
+    transform: translateY(-3px);
+}
+
+.section-form {
+    max-width: 600px; /* Atur lebar maksimal section */
+    margin: 20px auto; /* Center secara horizontal */
+    padding: 20px;
+    background-color: #f9f9f9; /* Warna latar yang lembut */
+    border: 1px solid #ddd; /* Border tipis */
+    border-radius: 8px; /* Rounded corners */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Tambahkan bayangan */
+}
+
+
+.output-section {
+    text-align: left;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.back-button {
+    background-color: #7d8fa7;
+}
+
+.back-button:hover {
+    background-color: #6a7b89;
+}
+
+label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block; /* Agar label berada di atas input */
+    color: #333; /* Warna teks */
+}
+
+input[type="text"],
+input[type="file"] {
+    width: 100%; /* Penuhi lebar kontainer */
+    padding: 10px;
+    margin-bottom: 15px; /* Jarak antar input */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Hindari ukuran berlebih */
+    font-size: 16px;
+}
+
+input[type="file"] {
+    padding: 5px; /* Karena file input berbeda tampilannya */
+    font-size: 14px;
+}
+
+
+/* Table styling for test history */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 15px;
+}
+
+table th,
+table td {
+    padding: 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    color: #2e4a63;
+}
+
+table th {
+    background-color: #e3eaf3;
+    font-weight: 600;
+}
+
+table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+table tr:hover {
+    background-color: #eaeaea;
+    transition: background-color 0.3s ease;
+}
+
+/* Styling untuk progress tracker */
+.progress-tracker {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0;
+    padding: 0 20px;
+}
+
+/* Styling untuk setiap langkah */
+.step {
+    text-align: center;
+    flex: 1;
+    position: relative;
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+}
+
+.step.active {
+    opacity: 1; /* Mengubah opasitas langkah yang aktif */
+}
+
+.step::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -50%; /* Menghubungkan langkah dengan garis */
+    width: 100%;
+    height: 4px;
+    background: #ccc; /* Warna garis untuk langkah yang belum selesai */
+    z-index: -1;
+}
+
+.step:last-child::after {
+    display: none; /* Tidak ada garis untuk langkah terakhir */
+}
+
+/* Styling untuk ikon setiap langkah */
+.icon {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    border-radius: 50%;
+    margin: 0 auto;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    font-size: 18px;
+    background: #ccc; /* Warna abu-abu untuk langkah yang belum selesai */
+    transition: background 0.3s ease;
+}
+
+/* Warna dan animasi untuk ikon aktif */
+.icon.active {
+    background: #3498db; /* Biru untuk langkah aktif */
+    animation: pulse 1s infinite; /* Animasi pulsasi */
+}
+
+/* Warna hijau untuk langkah yang sudah selesai */
+.icon.completed {
+    background: #2ecc71; /* Hijau untuk langkah selesai */
+}
+
+/* Gaya untuk teks status langkah */
+.step .text {
+    font-size: 14px;
+    margin-top: 8px;
+    color: #666;
+}
+
+/* Warna teks untuk langkah selesai dan aktif */
+.step.active .text,
+.step.completed .text {
+    color: #3498db; /* Warna biru untuk teks aktif dan selesai */
+    font-weight: 600; /* Teks lebih tebal */
+}
+
+.step.pending .text {
+    color: #ccc; /* Warna untuk teks langkah yang belum selesai */
+}
+
+/* Animasi pulsasi untuk ikon langkah aktif */
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1); /* Meningkatkan ukuran pada titik tengah animasi */
+    }
+}
+
+
+/* Styling tombol Show/Hide Screenshots */
+#toggleScreenshots {
+    display: inline-block;
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+/* Gaya saat hover pada tombol */
+#toggleScreenshots:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+}
+
+/* Gaya untuk status loading atau animasi saat toggle */
+#toggleScreenshots.loading {
+    background-color: #ffc107;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+
+/* Styling untuk tabel */
+#testHistoryTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+#testHistoryTable th, #testHistoryTable td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+#testHistoryTable th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+#testHistoryTable tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#testHistoryTable tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Styling untuk pagination controls */
+.pagination-controls {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.pagination-controls .page-number {
+    display: inline-block;
+    padding: 5px 10px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #fff;
+}
+
+.pagination-controls .page-number:hover {
+    background-color: #ddd;
+}
+
+.pagination-controls .page-number.active {
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    border-color: #007bff;
+}
+
+
+@media (max-width: 1024px) {
+    .container {
+        max-width: 95%; /* Gunakan hampir seluruh lebar layar */
+        padding: 30px 20px; /* Sesuaikan padding untuk perangkat kecil */
+    }
+
+
+    h1 {
+        font-size: 28px; /* Ukuran lebih kecil untuk layar kecil */
+        letter-spacing: 1px;
+    }
+
+    h2 {
+        font-size: 22px;
+    }
+
+    .button,
+    .back-button {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    textarea {
+        height: 120px; /* Kurangi tinggi teks area jika diperlukan */
+    }
+    
+}
