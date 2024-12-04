@@ -9,6 +9,8 @@ import subprocess
 import time
 import logging
 import datetime
+import json
+import io
 from model import db, TestHistory, SeleniumScript, WebElementData
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -18,11 +20,9 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from flask_socketio import SocketIO, emit
 from sqlalchemy import func
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from sqlalchemy.orm import sessionmaker
+from fpdf import FPDF
+from pathlib import Path
+import logging
 
 
 
@@ -268,12 +268,27 @@ def clean_code_with_regex(text):
 
 def run_pytest(file_name):
     try:
-        result = subprocess.run(["pytest", file_name], capture_output=True, text=True)
+        # Menjalankan pytest dengan opsi laporan JSON
+        result = subprocess.run(
+            ["pytest", file_name, "--json-report"],
+            capture_output=True, text=True
+        )
         logging.info("Pytest executed successfully.")
-        return result.stdout
+
+        # Membaca output JSON dari file laporan
+        report_path = ".report.json"  # Path default laporan JSON
+
+        if result.returncode == 0:
+            # Jika pytest sukses, membaca hasil laporan
+            with open(report_path, "r") as f:
+                report_data = json.load(f)
+                return report_data
+        else:
+            logging.error(f"Pytest failed with return code {result.returncode}.")
+            return None
     except Exception as e:
         logging.error(f"Failed to run pytest on {file_name}: {e}")
-        return str(e)
+        return None
 
 
 @app.route("/index", methods=["GET", "POST"])
@@ -311,69 +326,128 @@ def run_tests():
             return "Please upload a valid .py file."
     return render_template("test.html", test_output=test_output)
 
-
-def generate_test_report(filename, result, execution_time, start_time, end_time, screenshots, log_output=None):
-    # Nama file PDF
-    pdf_filename = f"test_report_{filename}.pdf"
+def generate_test_report(selenium_script, report_name, use_template=False):
+    """
+    Generate a test report using AI, run pytest to test the script, and save as a PDF.
     
-    # Buat dokumen PDF
-    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
-    styles = getSampleStyleSheet()
-    elements = []
-
-    # Header
-    elements.append(Paragraph("Automated Test Report", styles['Title']))
-    elements.append(Spacer(1, 12))
-
-    # Informasi Pengujian
-    elements.append(Paragraph("<b>Test Details:</b>", styles['Heading2']))
-    elements.append(Spacer(1, 12))
+    Args:
+        selenium_script (str): Content of the Selenium script.
+        report_name (str): Name of the report file (without extension).
+        use_template (bool): Whether to use a template for report generation.
     
-    data = [
-        ["Filename", filename],
-        ["Result", result.capitalize()],
-        ["Execution Time (seconds)", f"{execution_time:.2f}"],
-        ["Start Time", start_time.strftime("%Y-%m-%d %H:%M:%S")],
-        ["End Time", end_time.strftime("%Y-%m-%d %H:%M:%S")],
-    ]
-    table = Table(data, colWidths=[150, 300])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-    ]))
-    elements.append(table)
-    elements.append(Spacer(1, 24))
+    Returns:
+        str: Path to the generated PDF report.
+    """
+    # Validasi parameter
+    if not selenium_script.strip():
+        raise ValueError("Selenium script cannot be empty.")
+    if not report_name.strip():
+        raise ValueError("Report name cannot be empty.")
 
-    # Daftar Screenshot
-    if screenshots:
-        elements.append(Paragraph("<b>Screenshots:</b>", styles['Heading2']))
-        elements.append(Spacer(1, 12))
-        for screenshot in screenshots:
-            img_path = os.path.join("static", screenshot)
-            if os.path.exists(img_path):
-                elements.append(Image(img_path, width=300, height=150))
-                elements.append(Spacer(1, 12))
+    # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
+    test_cases, ai_report = analyze_script_with_ai(selenium_script)
+
+    # Logging awal
+    logging.info(f"Generating test report for script:\n{selenium_script[:200]}...")
+
+    # Siapkan direktori untuk menyimpan PDF
+    base_dir = Path(__file__).resolve().parent
+    pdf_output_path = base_dir / "static" / "reports"
+    pdf_output_path.mkdir(parents=True, exist_ok=True)
+    pdf_file_path = pdf_output_path / f"{report_name}.pdf"
+
+    # Langkah 3: Membuat PDF dan menyertakan hasil analisis dan tes
+    try:
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page(orientation='L')  # Menggunakan orientasi landscape
+        pdf.set_font("Arial", style="B", size=14)
+        pdf.cell(0, 10, f"Test Report: {report_name}", ln=True, align="C")
+        pdf.set_font("Arial", size=10)  # Mengurangi ukuran font agar lebih kompak
+        
+        # Menambahkan header untuk tabel test case
+        pdf.set_fill_color(255, 223, 186)  # Warna latar belakang header (kuning terang)
+        pdf.cell(40, 10, 'Test Case', 1, 0, 'C', 1)  # Kolom Test Case
+        pdf.cell(60, 10, 'Description', 1, 0, 'C', 1)  # Kolom Description (lebih lebar)
+        pdf.cell(40, 10, 'Result', 1, 1, 'C', 1)  # Kolom Result
+        
+        # Menambahkan data tabel untuk setiap test case
+        for test_case in test_cases:
+            description = test_cases[test_case]  # Menyimpan deskripsi test case
+            
+            # Pewarnaan untuk baris alternatif (zebra striping)
+            if test_cases.index(test_case) % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)  # Putih untuk baris genap
             else:
-                elements.append(Paragraph(f"Image not found: {screenshot}", styles['Normal']))
-                elements.append(Spacer(1, 12))
-        elements.append(Spacer(1, 24))
+                pdf.set_fill_color(240, 240, 240)  # Abu-abu muda untuk baris ganjil
+            
+            # Menambahkan baris dengan hasil pengujian
+            pdf.cell(40, 10, test_case, 1, 0, 'L', 1)  # Kolom Test Case
+            
+            # Gunakan multi_cell untuk deskripsi yang lebih panjang
+            pdf.multi_cell(60, 10, description, 1, 'L', 1)  # Kolom Description (multi_cell untuk wrapping)
+            
+        # Menambahkan laporan dari AI setelah tabel
+        pdf.ln(5)  # Jarak setelah tabel
+        pdf.multi_cell(0, 10, ai_report)
+        
+        # Output file PDF
+        pdf.output(str(pdf_file_path))
+        logging.info(f"Test report saved as PDF: {pdf_file_path}")
+    except Exception as e:
+        logging.error(f"Failed to save PDF: {e}")
+        raise
 
-    # Log Output
-    if log_output:
-        elements.append(Paragraph("<b>Test Log:</b>", styles['Heading2']))
-        elements.append(Spacer(1, 12))
-        elements.append(Paragraph(log_output.replace("\n", "<br/>"), styles['Normal']))
-        elements.append(Spacer(1, 24))
+    return str(pdf_file_path)
 
-    # Build PDF
-    doc.build(elements)
-    return pdf_filename
+def analyze_script_with_ai(selenium_script):
+    """
+    Uses AI to analyze the given Selenium script and extract test cases.
+    
+    Args:
+        selenium_script (str): The Selenium script to analyze.
+    
+    Returns:
+        tuple: A tuple containing a list of test cases and the AI-generated test report.
+    """
+    # Template prompt untuk model AI
+    template_prompt = (
+        f"Analyze the following Selenium script and simulate its execution:\n\n"
+        f"{selenium_script}\n\n"
+        "Identify all test cases in this script and generate a detailed test report with the following structure:\n"
+        "- **Test Case**: Name and description of the test case.\n"
+        "- **Expected Results**: Describe what the test case is intended to validate.\n"
+        "- **Actual Results**: Simulate the execution and provide a summary of the outcomes.\n"
+        "- **Issues Found**: Highlight any issues encountered during the test.\n"
+        "- **Recommendations**: Suggest fixes or improvements for the script.\n\n"
+        "Generate the report in a professional tone and also list the test cases identified in the script."
+    )
+    
+    # Memanggil model AI untuk menganalisis skrip
+    messages = [{"role": "user", "content": template_prompt}]
+    ai_report = ""
+    test_cases = {}
+    
+    try:
+        for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
+            if "choices" in message:
+                ai_report += message.choices[0].delta.content
+                # Proses AI untuk mengidentifikasi test case
+                if "Test Case" in message.choices[0].delta.content:
+                    test_case_lines = message.choices[0].delta.content.split("\n")
+                    test_cases = {line.strip(): "Description here" for line in test_case_lines if line.strip()}
+            else:
+                logging.warning(f"Unexpected response format: {message}")
+        
+        if not ai_report.strip():
+            raise ValueError("Empty AI report generated.")
+        
+        logging.info("Test report generated successfully by AI.")
+    except Exception as e:
+        logging.critical(f"Failed to generate test report from model: {e}")
+        raise
+
+    return test_cases, ai_report
 
 
 @app.route("/one_click", methods=["GET", "POST"])
@@ -386,7 +460,6 @@ def one_click():
     screenshots = []  # Variabel untuk menyimpan daftar screenshot
     screenshot_base_folder = os.path.join("static", "screenshot")
     test_history_entry = None  # Inisialisasi variabel sebelum digunakan
-
 
     if request.method == "POST":
         logging.info("Received POST request in one_click.")
@@ -418,11 +491,18 @@ def one_click():
                 with open(file_name, "w") as f:
                     f.write(selenium_script)
 
-                # Catat waktu mulai
                 start_time = datetime.datetime.now()
 
-                # Jalankan tes menggunakan pytest
-                test_output += "\n" + run_pytest(file_name)
+                # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
+                report_data = run_pytest(file_name)
+
+                # Tangani laporan JSON jika ada
+                if report_data:
+                    test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
+
+                    # Ambil data hasil tes dan waktu eksekusi
+                    result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
+                    execution_time = (datetime.datetime.now() - start_time).total_seconds()
 
                 # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                 latest_folder = get_latest_session_folder(screenshot_base_folder)
@@ -455,38 +535,7 @@ def one_click():
 
                 # Tentukan hasil tes
                 result = "passed" if "passed" in test_output else "failed"
-
-                if result == "passed":
-                    # Buat laporan PDF setelah screenshot tersedia
-                    pdf_filename = generate_test_report(
-                        file.filename,
-                        result,
-                        execution_time,
-                        start_time,
-                        datetime.datetime.now(),
-                        screenshots
-                    )
-                    logging.info(f"Test report generated: {pdf_filename}")
-
-                # Simpan hasil tes ke database
-                test_history_entry = TestHistory(
-                    filename=file.filename,
-                    result=result,
-                    execution_time=execution_time,
-                    start_time=start_time,
-                    end_time=end_time,
-                    screenshots=screenshots
-                )
-                db.session.add(test_history_entry)
-                db.session.commit()
-
-                if result == "passed":
-                    existing_script.status = "passed"
-
-                db.session.commit()
-                os.remove(file_name)
-                logging.debug(f"Temporary file {file_name} removed.")
-
+                
             else:
                 # Jika tidak ada script yang ada di database, buat script baru
                 try:
@@ -504,11 +553,20 @@ def one_click():
                     file_name = "temp_selenium_test.py"
                     with open(file_name, "w") as f:
                         f.write(cleaned_script)
-
-                    # Jalankan tes menggunakan pytest
+                        
                     start_time = datetime.datetime.now()
-                    test_output = run_pytest(file_name)
-                    execution_time = (datetime.datetime.now() - start_time).total_seconds()
+
+                    # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
+                    report_data = run_pytest(file_name)
+
+                    # Tangani laporan JSON jika ada
+                    if report_data:
+                        test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
+
+                        # Ambil data hasil tes dan waktu eksekusi
+                        result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
+                        execution_time = (datetime.datetime.now() - start_time).total_seconds()
+                    
 
                     # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                     latest_folder = get_latest_session_folder(screenshot_base_folder)
@@ -524,23 +582,20 @@ def one_click():
                         ]
                         logging.info(f"Screenshots found: {screenshots}")
 
-                        if test_history_entry:  # Pastikan hanya menggunakan variabel jika sudah diinisialisasi
-                            test_history_entry.screenshots = screenshots
-                    else:
-                        logging.warning("No session folders found.")
-
                     result = "passed" if "passed" in test_output else "failed"
 
                     if result == "passed":
-                        pdf_filename = generate_test_report(
-                            file.filename,
-                            result,
-                            execution_time,
-                            start_time,
-                            datetime.datetime.now(),
-                            screenshots
-                        )
-                        logging.info(f"Test report generated: {pdf_filename}")
+                        report_name = file.filename.split('.')[0]  
+                        
+                        try:
+                            pdf_filename = generate_test_report(
+                                selenium_script,  
+                                report_name,      
+                                use_template=True  
+                            )
+                            logging.info(f"Test report generated: {pdf_filename}")
+                        except Exception as e:
+                            logging.error(f"Failed to generate test report: {e}")
 
                     test_history_entry = TestHistory(
                         filename=file.filename,
@@ -551,7 +606,7 @@ def one_click():
                         screenshots=screenshots
                     )
                     db.session.add(test_history_entry)
-                    db.session.commit()                    # Hanya simpan SeleniumScript jika hasilnya "passed"
+                    db.session.commit()                    
                     if result == "passed":
                         selenium_script_entry = SeleniumScript(
                             filename=file.filename,

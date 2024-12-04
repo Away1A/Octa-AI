@@ -77,7 +77,22 @@
             {% if test_output %}
             <section class="output-section">
                 <h2>Test Output</h2>
-                <textarea readonly>{{ test_output }}</textarea>
+                <table id="testResultsTable" border="1">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Test Name</th>
+                            <th>Outcome</th>
+                            <th>Setup Duration (s)</th>
+                            <th>Call Duration (s)</th>
+                            <th>Teardown Duration (s)</th>
+                            <th>Total Duration (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data akan diisi melalui AJAX -->
+                    </tbody>
+                </table>
                 <button id="downloadPdf" class="button">Download PDF Report</button>
             </section>
             {% endif %}
@@ -231,11 +246,12 @@
                         // Tunggu sebentar untuk simulasi waktu validasi
                         setTimeout(() => {
                             updateStep("step-generate"); // Langkah ketiga
+                            
+                        console.log(response.test_output);
 
                             // Simulasi waktu generasi script
                             setTimeout(() => {
                                 updateStep("step-test"); // Langkah keempat
-
                                 // Fungsi untuk mengunduh laporan PDF
                                 $(document).on('click', '#downloadPdf', function () {
                                     const pdfFilename = response.pdf_report; // Nama file yang dikirim dari server
@@ -249,11 +265,45 @@
                             <textarea readonly>${response.selenium_script}</textarea>
                         `;
 
-                                let testOutputHtml = `
-                            <h2>Test Output</h2>
-                            <textarea readonly>${response.test_output}</textarea>
-                            <button id="downloadPdf" class="button">Download PDF Report</button>
-                        `;
+                        let testOutputHtml = `
+                    <h2>Test Output</h2>
+                    <table id="testResultsTable" border="1">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Test Name</th>
+                                <th>Outcome</th>
+                                <th>Setup Duration (s)</th>
+                                <th>Call Duration (s)</th>
+                                <th>Teardown Duration (s)</th>
+                                <th>Total Duration (s)</th>
+                            </tr>
+                        </thead>
+                            <tbody>
+                                ${
+                                    Array.isArray(response.test_output) && response.test_output.length > 0
+                                    ? response.test_output.map((test, index) => `
+                                        <tr>
+                                            <td>${index + 1}</td>
+                                            <td>${test.nodeid || 'N/A'}</td>
+                                            <td>${test.outcome || 'N/A'}</td>
+                                            <td>${(test.setup?.duration || 0).toFixed(2)}</td>
+                                            <td>${(test.call?.duration || 0).toFixed(2)}</td>
+                                            <td>${(test.teardown?.duration || 0).toFixed(2)}</td>
+                                            <td>${(
+                                                (test.setup?.duration || 0) +
+                                                (test.call?.duration || 0) +
+                                                (test.teardown?.duration || 0)
+                                            ).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')
+                                    : '<tr><td colspan="7">No test output available.</td></tr>'
+                                }
+                            </tbody>
+                    </table>
+                    <button id="downloadPdf" class="button">Download PDF Report</button>
+                `;
+
 
                                 let screenshotsHtml = '';
                                 if (response.screenshots && response.screenshots.length > 0) {
