@@ -23,10 +23,9 @@ from sqlalchemy import func
 from fpdf import FPDF
 from pathlib import Path
 import logging
+from langchain_ollama import OllamaLLM
 
-
-
-
+llm = OllamaLLM(model="qwen2.5-coder:32b")
 
 # Konfigurasi logging
 logging.basicConfig(
@@ -159,6 +158,7 @@ def scrape_elements(login_url, target_url, db_session):
         driver.quit()
         logging.info("Driver ditutup.")
 
+
 def generate_selenium_script(gherkin_text, login_url, target_url, use_template=False):
 
     # Ambil domain dari login_url
@@ -240,22 +240,22 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "  - Include detailed error messages in assertions (e.g., `pytest.fail('Expected page did not load.')`).\n"
     )
 
-
     if use_template:
         example_script = SeleniumScript.query.filter_by(status="passed").first()
         if example_script:
             template_prompt += f"\n\ngive log for every step and Example script:\n\n{example_script.script_content}"
             logging.debug("Template prompt with example script found and added.")
 
-    messages = [{"role": "user", "content": template_prompt}]
-    response = ""
     try:
-        for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
-            response += message.choices[0].delta.content
+        # Memanggil model untuk menghasilkan script
+        response = llm.invoke(input=template_prompt)  # Menggunakan parameter 'input'
         logging.info("Selenium script generated successfully.")
+        return response.strip()
+
     except Exception as e:
         logging.critical(f"Failed to generate script from model: {e}")
-    return response.strip()
+        return f"Error during script generation: {e}"
+
 
 def clean_code_with_regex(text):
     match = re.search(r"```(python|py)(.*?)```", text, re.DOTALL)
@@ -346,6 +346,8 @@ def generate_test_report(selenium_script, report_name, use_template=False):
 
     # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
     test_cases, ai_report = analyze_script_with_ai(selenium_script)
+    cleaned_report = clean_code_with_regex(test_case, ai_report)
+    test_case, ai_report = cleaned_report
 
     # Logging awal
     logging.info(f"Generating test report for script:\n{selenium_script[:200]}...")
@@ -365,11 +367,6 @@ def generate_test_report(selenium_script, report_name, use_template=False):
         pdf.cell(0, 10, f"Test Report: {report_name}", ln=True, align="C")
         pdf.set_font("Arial", size=10)  # Mengurangi ukuran font agar lebih kompak
         
-        # Menambahkan header untuk tabel test case
-        pdf.set_fill_color(255, 223, 186)  # Warna latar belakang header (kuning terang)
-        pdf.cell(40, 10, 'Test Case', 1, 0, 'C', 1)  # Kolom Test Case
-        pdf.cell(60, 10, 'Description', 1, 0, 'C', 1)  # Kolom Description (lebih lebar)
-        pdf.cell(40, 10, 'Result', 1, 1, 'C', 1)  # Kolom Result
         
         # Menambahkan data tabel untuk setiap test case
         for test_case in test_cases:
@@ -420,35 +417,39 @@ def analyze_script_with_ai(selenium_script):
         "- **Actual Results**: Simulate the execution and provide a summary of the outcomes.\n"
         "- **Issues Found**: Highlight any issues encountered during the test.\n"
         "- **Recommendations**: Suggest fixes or improvements for the script.\n\n"
-        "Generate the report in a professional tone and also list the test cases identified in the script."
+        "Return the output as a JSON array with the following structure:\n\n"
+        "[\n"
+        "    {\n"
+        "        \"Test Case\": \"Name of the test case\",\n"
+        "        \"Description\": \"Brief description of the test case\",\n"
+        "        \"Expected Results\": \"Summary of the expected results\",\n"
+        "        \"Actual Results\": \"Summary of the actual results\",\n"
+        "        \"Issues Found\": \"List any issues encountered\",\n"
+        "        \"Recommendations\": \"Suggestions for improvement\"\n"
+        "    },\n"
+        "    ...\n"
+        "]\n\n"
+        "Ensure the JSON output is properly formatted and ready for further processing in Python. "
+        "Include concise and relevant information for each test case, with simple sentences suitable for a landscape PDF table."
     )
-    
-    # Memanggil model AI untuk menganalisis skrip
-    messages = [{"role": "user", "content": template_prompt}]
-    ai_report = ""
-    test_cases = {}
-    
+
     try:
-        for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
-            if "choices" in message:
-                ai_report += message.choices[0].delta.content
-                # Proses AI untuk mengidentifikasi test case
-                if "Test Case" in message.choices[0].delta.content:
-                    test_case_lines = message.choices[0].delta.content.split("\n")
-                    test_cases = {line.strip(): "Description here" for line in test_case_lines if line.strip()}
-            else:
-                logging.warning(f"Unexpected response format: {message}")
+        # Memanggil model Ollama untuk menghasilkan laporan
+        ai_report = llm.invoke(input=template_prompt)  # Mengganti parameter `prompt` dengan `input`
+        logging.info("AI-generated test report successfully.")
         
-        if not ai_report.strip():
-            raise ValueError("Empty AI report generated.")
+        # Parsing laporan untuk menemukan test case
+        test_cases = []
+        try:
+            test_cases = json.loads(ai_report)  # Asumsikan output dalam format JSON
+        except json.JSONDecodeError:
+            logging.warning("Failed to parse AI report into JSON. Returning raw report instead.")
         
-        logging.info("Test report generated successfully by AI.")
+        return test_cases, ai_report
+
     except Exception as e:
-        logging.critical(f"Failed to generate test report from model: {e}")
-        raise
-
-    return test_cases, ai_report
-
+        logging.critical(f"Failed to analyze Selenium script with AI: {e}")
+        return [], f"Error during analysis: {e}"
 
 @app.route("/one_click", methods=["GET", "POST"])
 def one_click():
@@ -457,26 +458,23 @@ def one_click():
     gherkin_files = SeleniumScript.query.with_entities(SeleniumScript.filename).all()
     gherkin_content = ""
     selenium_script = ""
-    screenshots = []  # Variabel untuk menyimpan daftar screenshot
+    screenshots = []
     screenshot_base_folder = os.path.join("static", "screenshot")
-    test_history_entry = None  # Inisialisasi variabel sebelum digunakan
+    test_history_entry = None
 
     if request.method == "POST":
         logging.info("Received POST request in one_click.")
 
-        # Mendapatkan file dan URL dari form
         file = request.files.get("feature_file")
         login_url = request.form.get("url")
         target_url = request.form.get("target_url")
 
-        # Langkah 1: Memeriksa apakah login_url dan target_url sudah ada di WebElementData
         existing_elements = WebElementData.query.filter_by(url=target_url).first()
 
         if login_url and target_url and not existing_elements:
             logging.info(f"Scraping elements for target_url: {target_url}")
             scrape_elements(login_url, target_url, db.session)
 
-        # Langkah 2: Proses file .feature
         if file and file.filename.endswith(".feature"):
             logging.debug(f"Feature file uploaded: {file.filename}")
             existing_script = SeleniumScript.query.filter_by(filename=file.filename).first()
@@ -486,58 +484,83 @@ def one_click():
                 selenium_script = existing_script.script_content
                 test_output = "Using existing Selenium script from database."
 
-                # Buat file sementara untuk menjalankan script
                 file_name = "temp_selenium_test.py"
                 with open(file_name, "w") as f:
                     f.write(selenium_script)
 
                 start_time = datetime.datetime.now()
-
-                # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
                 report_data = run_pytest(file_name)
 
-                # Tangani laporan JSON jika ada
                 if report_data:
-                    test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
-
-                    # Ambil data hasil tes dan waktu eksekusi
-                    result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
+                    # Cek jika report_data sudah berupa objek JSON (dictionary atau list)
+                    if isinstance(report_data, str):
+                        try:
+                            parsed_report_data = json.loads(report_data)  # Parsing jika berupa string JSON
+                        except json.JSONDecodeError:
+                            raise ValueError("Invalid JSON string")
+                    else:
+                        parsed_report_data = report_data  # Jika sudah berupa objek JSON (dictionary/list)
+                    
+                    # Tentukan status berdasarkan outcome dari setiap test case
+                    result = "passed" if all(test['outcome'] == 'passed' for test in parsed_report_data['tests']) else "failed"
+                    
+                    # Hitung waktu eksekusi
                     execution_time = (datetime.datetime.now() - start_time).total_seconds()
 
-                # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                 latest_folder = get_latest_session_folder(screenshot_base_folder)
                 if latest_folder:
-                    # Cari semua screenshot di folder terbaru
                     screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    
-                    # Tunggu sampai screenshot tersedia
                     while not screenshot_files:
-                        logging.debug("Waiting for screenshots to be saved...")
-                        time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
+                        time.sleep(1)
                         screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    
-                    # Membuat daftar URL screenshot
                     screenshots = [
                         url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
                         for file in screenshot_files
                     ]
                     logging.info(f"Screenshots found: {screenshots}")
 
-                else:
-                    logging.warning("No session folders found.")
-
-                # Catat waktu selesai
                 end_time = datetime.datetime.now()
-
-                # Hitung waktu eksekusi
                 execution_time = (end_time - start_time).total_seconds()
                 logging.debug(f"Execution time: {execution_time} seconds.")
 
-                # Tentukan hasil tes
                 result = "passed" if "passed" in test_output else "failed"
                 
+                # Simpan ke database jika semua test passed
+                test_history_entry = TestHistory(
+                        filename=file.filename,
+                        result=result,
+                        execution_time=execution_time,
+                        start_time=start_time,
+                        end_time=datetime.datetime.now(),
+                        screenshots=",".join(screenshots)
+                    )
+                db.session.add(test_history_entry)
+
+                selenium_script_entry = SeleniumScript(
+                        filename=file.filename,
+                        script_content=cleaned_script,
+                        status="passed"
+                    )
+                db.session.add(selenium_script_entry)
+
+                db.session.commit()
+                logging.info(f"File {file.filename} saved to database.")
+                
+                if result == "passed":
+                        report_name = file.filename.split('.')[0]  
+                        
+                        # Panggil fungsi untuk menghasilkan laporan PDF
+                        try:
+                            pdf_filename = generate_test_report(
+                                selenium_script,  
+                                report_name,      
+                                use_template=True  
+                            )
+                            logging.info(f"Test report generated: {pdf_filename}")
+                        except Exception as e:
+                            logging.error(f"Failed to generate test report: {e}")
+                
             else:
-                # Jika tidak ada script yang ada di database, buat script baru
                 try:
                     gherkin_content = file.read().decode("utf-8")
                     logging.info(f"Feature file content read successfully: {file.filename}")
@@ -549,32 +572,34 @@ def one_click():
                     cleaned_script = clean_code_with_regex(raw_selenium_script)
                     selenium_script = cleaned_script
 
-                    # Buat file sementara untuk menjalankan script
                     file_name = "temp_selenium_test.py"
                     with open(file_name, "w") as f:
                         f.write(cleaned_script)
-                        
-                    start_time = datetime.datetime.now()
 
-                    # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
+                    start_time = datetime.datetime.now()
                     report_data = run_pytest(file_name)
 
-                    # Tangani laporan JSON jika ada
                     if report_data:
-                        test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
-
-                        # Ambil data hasil tes dan waktu eksekusi
-                        result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
+                        # Cek jika report_data sudah berupa objek JSON (dictionary atau list)
+                        if isinstance(report_data, str):
+                            try:
+                                parsed_report_data = json.loads(report_data)  # Parsing jika berupa string JSON
+                            except json.JSONDecodeError:
+                                raise ValueError("Invalid JSON string")
+                        else:
+                            parsed_report_data = report_data  # Jika sudah berupa objek JSON (dictionary/list)
+                        
+                        # Tentukan status berdasarkan outcome dari setiap test case
+                        result = "passed" if all(test['outcome'] == 'passed' for test in parsed_report_data['tests']) else "failed"
+                        
+                        # Hitung waktu eksekusi
                         execution_time = (datetime.datetime.now() - start_time).total_seconds()
-                    
 
-                    # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                     latest_folder = get_latest_session_folder(screenshot_base_folder)
                     if latest_folder:
                         screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
                         while not screenshot_files:
-                            logging.debug("Waiting for screenshots to be saved...")
-                            time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
+                            time.sleep(1)
                             screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
                         screenshots = [
                             url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
@@ -587,6 +612,7 @@ def one_click():
                     if result == "passed":
                         report_name = file.filename.split('.')[0]  
                         
+                        # Panggil fungsi untuk menghasilkan laporan PDF
                         try:
                             pdf_filename = generate_test_report(
                                 selenium_script,  
@@ -641,11 +667,11 @@ def one_click():
                 }
                 for test in updated_test_history
             ]
-            pdf_filename = f"test_report_{file.filename}.pdf"  # Nama file PDF yang dibuat
+            pdf_filename = f"test_report_{file.filename}.pdf"  
             return jsonify({
                 "gherkin_content": gherkin_content,
                 "selenium_script": selenium_script,
-                "test_output": test_output,
+                "test_output": parsed_report_data,  # Parsed report data yang sudah berupa objek JSON
                 "test_history": history_data,
                 "screenshots": screenshots,
                 "pdf_report": pdf_filename  
@@ -657,12 +683,13 @@ def one_click():
             gherkin_files=gherkin_files,
             gherkin_content=gherkin_content,
             selenium_script=selenium_script,
-            test_output=test_output,
+            test_output=parsed_report_data,  # Parsed report data yang sudah berupa objek JSON
             screenshots=screenshots,
             pdf_report=pdf_filename,
         )
 
     return render_template("one_click.html", test_history=test_history, gherkin_files=gherkin_files)
+
 
 # WebSocket event to handle real-time communication
 @socketio.on('run_test')

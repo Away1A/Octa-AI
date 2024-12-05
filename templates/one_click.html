@@ -281,8 +281,8 @@
                         </thead>
                             <tbody>
                                 ${
-                                    Array.isArray(response.test_output) && response.test_output.length > 0
-                                    ? response.test_output.map((test, index) => `
+                                    Array.isArray(response.test_output?.tests) && response.test_output.tests.length > 0
+                                    ? response.test_output.tests.map((test, index) => `
                                         <tr>
                                             <td>${index + 1}</td>
                                             <td>${test.nodeid || 'N/A'}</td>
@@ -300,6 +300,7 @@
                                     : '<tr><td colspan="7">No test output available.</td></tr>'
                                 }
                             </tbody>
+
                     </table>
                     <button id="downloadPdf" class="button">Download PDF Report</button>
                 `;
