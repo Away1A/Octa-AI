@@ -83,10 +83,8 @@
                             <th>No</th>
                             <th>Test Name</th>
                             <th>Outcome</th>
-                            <th>Setup Duration (s)</th>
-                            <th>Call Duration (s)</th>
-                            <th>Teardown Duration (s)</th>
                             <th>Total Duration (s)</th>
+                            <th>Error Message</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -273,33 +271,30 @@
                                 <th>No</th>
                                 <th>Test Name</th>
                                 <th>Outcome</th>
-                                <th>Setup Duration (s)</th>
-                                <th>Call Duration (s)</th>
-                                <th>Teardown Duration (s)</th>
                                 <th>Total Duration (s)</th>
+                                <th>Error Message</th>
                             </tr>
                         </thead>
                             <tbody>
                                 ${
-                                    Array.isArray(response.test_output) && response.test_output.length > 0
-                                    ? response.test_output.map((test, index) => `
+                                    Array.isArray(response.test_output.tests) && response.test_output.tests.length > 0
+                                    ? response.test_output.tests.map((test, index) => `
                                         <tr>
                                             <td>${index + 1}</td>
-                                            <td>${test.nodeid || 'N/A'}</td>
+                                            <td>${test.nodeid.split("::")[1] || 'N/A'}</td> <!-- Ambil hanya bagian setelah "::" -->
                                             <td>${test.outcome || 'N/A'}</td>
-                                            <td>${(test.setup?.duration || 0).toFixed(2)}</td>
-                                            <td>${(test.call?.duration || 0).toFixed(2)}</td>
-                                            <td>${(test.teardown?.duration || 0).toFixed(2)}</td>
                                             <td>${(
                                                 (test.setup?.duration || 0) +
                                                 (test.call?.duration || 0) +
                                                 (test.teardown?.duration || 0)
                                             ).toFixed(2)}</td>
+                                            <td>${test.call?.crash?.message || 'N/A'}</td>
                                         </tr>
                                     `).join('')
                                     : '<tr><td colspan="7">No test output available.</td></tr>'
                                 }
                             </tbody>
+
                     </table>
                     <button id="downloadPdf" class="button">Download PDF Report</button>
                 `;

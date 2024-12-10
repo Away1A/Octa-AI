@@ -25,9 +25,6 @@ from pathlib import Path
 import logging
 
 
-
-
-
 # Konfigurasi logging
 logging.basicConfig(
     level=logging.DEBUG,  # Set level ke DEBUG untuk mencatat semua level
@@ -121,35 +118,47 @@ def scrape_elements(login_url, target_url, db_session):
             logging.warning(f"Gagal mencapai halaman target. Halaman saat ini: {driver.current_url}")
             return
 
-        # Tunggu sampai halaman sepenuhnya dimuat sebelum memulai scraping
+        # Tunggu sampai halaman sepenuhnya dimuat sebelum scraping
         logging.info("Menunggu halaman sepenuhnya dimuat...")
-        WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.XPATH, '//*')))
-        
-        # Mulai proses scraping hanya di halaman target
-        elements = driver.find_elements(By.XPATH, '//*')
-        if not elements:
-            logging.warning("Tidak ada elemen ditemukan di halaman target.")
-        
-        for element in elements:
+        WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.XPATH, '//div | //section | //form')))
+
+        # Temukan semua container di halaman (div, section, atau form)
+        containers = driver.find_elements(By.XPATH, '//div | //section | //form')
+        if not containers:
+            logging.warning("Tidak ada container ditemukan di halaman target.")
+            return
+
+        logging.info(f"Ditemukan {len(containers)} container di halaman. Memulai scraping...")
+
+        for container in containers:
             try:
-                xpath = get_element_xpath(element)
-                attribute = element.get_attribute("class") or element.get_attribute("id") or "No attribute"
-                text_content = element.text
+                # Cari elemen-elemen dalam setiap container
+                elements = container.find_elements(By.XPATH, './/*')
+                if not elements:
+                    continue
 
-                # Buat instance WebElementData dan tambahkan ke sesi database
-                web_element_data = WebElementData(
-                    url=target_url,
-                    xpath=xpath,
-                    attribute=attribute,
-                    text_content=text_content
-                )
-                db_session.add(web_element_data)
+                for element in elements:
+                    try:
+                        xpath = get_element_xpath(element)
+                        attribute = element.get_attribute("class") or element.get_attribute("id") or "No attribute"
+                        text_content = element.text
+
+                        # Buat instance WebElementData dan tambahkan ke sesi database
+                        web_element_data = WebElementData(
+                            url=target_url,
+                            xpath=xpath,
+                            attribute=attribute,
+                            text_content=text_content
+                        )
+                        db_session.add(web_element_data)
+                    except Exception as e:
+                        logging.error(f"Gagal memproses elemen dalam container: {e}")
             except Exception as e:
-                logging.error(f"Gagal memproses elemen dengan XPath {xpath}: {e}")
+                logging.error(f"Gagal memproses container: {e}")
 
-        # Simpan semua elemen yang ditemukan ke database
+        # Simpan semua data elemen yang ditemukan ke database
         db_session.commit()
-        logging.info(f"Berhasil melakukan scraping elemen dari {target_url}.")
+        logging.info(f"Berhasil melakukan scraping semua container dari {target_url}.")
 
     except Exception as e:
         logging.error(f"Gagal melakukan scraping dari {target_url}: {e}")
@@ -185,9 +194,8 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "Follow these coding guidelines:\n"
         "- Use **XPath** with **multiple `contains(@class, ...)` conditions** to locate button elements with complex class attributes.\n"
         "- Use `//input[@id` or CSS Selectors for element identification.\n"
-        "- For password field use Xpath with contains class if dont have Xpath id \n"
-        "- For submit or login use Xpath with id"
-        "- Use XPath with attributes (if available) or CSS Selector for locating input or button elements.\n"
+        "- For password and username use xpath with correct type \n"
+        "- Use XPath with attributes (if available) or CSS Selector. \n"
         "- Use JavaScript Executor to click buttons or elements as required.\n"
         "- Ensure modal pop-ups or overlays are handled correctly by scoping actions within the modal context.\n"
         "- Make sure to use `pytest.fail()` for failures, with descriptive error messages.\n\n"
@@ -217,7 +225,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "- Screenshots:\n"
         "  - Save screenshots at key steps:\n"
         "    - After page loads.\n"
-        "    - After performing major actions (e.g., submitting a form, interacting with a modal).\n"
+        "    - After performing major actions (e.g., submitting a form, interacting with all modal).\n"
         "    - During exceptions or unexpected behaviors.\n"
         "  - Organize screenshots into session-based subfolders:\n"
         "    - Root folder: `static/screenshot`\n"
@@ -285,7 +293,9 @@ def run_pytest(file_name):
                 return report_data
         else:
             logging.error(f"Pytest failed with return code {result.returncode}.")
-            return None
+            with open(report_path, "r") as f:
+                report_data = json.load(f)
+                return report_data
     except Exception as e:
         logging.error(f"Failed to run pytest on {file_name}: {e}")
         return None
@@ -452,6 +462,7 @@ def analyze_script_with_ai(selenium_script):
 
 @app.route("/one_click", methods=["GET", "POST"])
 def one_click():
+    result = "failed"
     test_output = ""
     test_history = TestHistory.query.all()
     gherkin_files = SeleniumScript.query.with_entities(SeleniumScript.filename).all()
@@ -460,6 +471,8 @@ def one_click():
     screenshots = []  # Variabel untuk menyimpan daftar screenshot
     screenshot_base_folder = os.path.join("static", "screenshot")
     test_history_entry = None  # Inisialisasi variabel sebelum digunakan
+    execution_time = 0
+
 
     if request.method == "POST":
         logging.info("Received POST request in one_click.")
@@ -496,27 +509,31 @@ def one_click():
                 # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
                 report_data = run_pytest(file_name)
 
-                # Tangani laporan JSON jika ada
-                if report_data:
-                    test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
+                # Simpan laporan JSON langsung tanpa pengecekan
+                test_output = report_data
+                result = "completed"  # Tetapkan status sebagai "completed"
+                execution_time = (datetime.datetime.now() - start_time).total_seconds()
 
-                    # Ambil data hasil tes dan waktu eksekusi
-                    result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
-                    execution_time = (datetime.datetime.now() - start_time).total_seconds()
-
+                    # Generate PDF report untuk hasil "passed"
+                report_name = file.filename.split('.')[0]
+                try:
+                            pdf_filename = generate_test_report(
+                                selenium_script,
+                                report_name,
+                                use_template=True
+                            )
+                            logging.info(f"Test report generated: {pdf_filename}")
+                except Exception as e:
+                            logging.error(f"Failed to generate test report: {e}")
+                            
                 # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                 latest_folder = get_latest_session_folder(screenshot_base_folder)
                 if latest_folder:
-                    # Cari semua screenshot di folder terbaru
                     screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    
-                    # Tunggu sampai screenshot tersedia
                     while not screenshot_files:
                         logging.debug("Waiting for screenshots to be saved...")
                         time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
                         screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    
-                    # Membuat daftar URL screenshot
                     screenshots = [
                         url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
                         for file in screenshot_files
@@ -533,9 +550,6 @@ def one_click():
                 execution_time = (end_time - start_time).total_seconds()
                 logging.debug(f"Execution time: {execution_time} seconds.")
 
-                # Tentukan hasil tes
-                result = "passed" if "passed" in test_output else "failed"
-                
             else:
                 # Jika tidak ada script yang ada di database, buat script baru
                 try:
@@ -559,15 +573,11 @@ def one_click():
                     # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
                     report_data = run_pytest(file_name)
 
-                    # Tangani laporan JSON jika ada
-                    if report_data:
-                        test_output = json.dumps(report_data, indent=4)  # Menampilkan output JSON
-
-                        # Ambil data hasil tes dan waktu eksekusi
-                        result = "passed" if all(test['outcome'] == 'passed' for test in report_data['tests']) else "failed"
-                        execution_time = (datetime.datetime.now() - start_time).total_seconds()
+                    # Simpan laporan JSON langsung tanpa pengecekan
+                    test_output = report_data
+                    result = "completed"  # Tetapkan status sebagai "completed"
+                    execution_time = (datetime.datetime.now() - start_time).total_seconds()
                     
-
                     # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                     latest_folder = get_latest_session_folder(screenshot_base_folder)
                     if latest_folder:
@@ -582,31 +592,7 @@ def one_click():
                         ]
                         logging.info(f"Screenshots found: {screenshots}")
 
-                    result = "passed" if "passed" in test_output else "failed"
-
-                    if result == "passed":
-                        report_name = file.filename.split('.')[0]  
-                        
-                        try:
-                            pdf_filename = generate_test_report(
-                                selenium_script,  
-                                report_name,      
-                                use_template=True  
-                            )
-                            logging.info(f"Test report generated: {pdf_filename}")
-                        except Exception as e:
-                            logging.error(f"Failed to generate test report: {e}")
-
-                    test_history_entry = TestHistory(
-                        filename=file.filename,
-                        result=result,
-                        execution_time=execution_time,
-                        start_time=start_time,
-                        end_time=datetime.datetime.now(),
-                        screenshots=screenshots
-                    )
-                    db.session.add(test_history_entry)
-                    db.session.commit()                    
+                    # Menyimpan hasil hanya jika "passed"
                     if result == "passed":
                         selenium_script_entry = SeleniumScript(
                             filename=file.filename,
@@ -615,7 +601,30 @@ def one_click():
                         )
                         db.session.add(selenium_script_entry)
 
+                        # Generate PDF report untuk hasil "passed"
+                        report_name = file.filename.split('.')[0]
+                        try:
+                            pdf_filename = generate_test_report(
+                                selenium_script,
+                                report_name,
+                                use_template=True
+                            )
+                            logging.info(f"Test report generated: {pdf_filename}")
+                        except Exception as e:
+                            logging.error(f"Failed to generate test report: {e}")
+
+                    # Simpan hasil tes ke dalam TestHistory
+                    test_history_entry = TestHistory(
+                        filename=file.filename,
+                        result=result,
+                        execution_time=execution_time,
+                        start_time=start_time,
+                        end_time=datetime.datetime.now(),
+                        screenshots=",".join(screenshots)
+                    )
+                    db.session.add(test_history_entry)
                     db.session.commit()
+
                     os.remove(file_name)
                     logging.debug(f"Temporary file {file_name} removed.")
 
@@ -627,6 +636,7 @@ def one_click():
             logging.warning("Invalid file format or no file uploaded.")
             return "Please upload a valid .feature file."
 
+        # Response untuk AJAX jika diminta
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             updated_test_history = TestHistory.query.order_by(TestHistory.start_time.desc()).all()
             history_data = [
@@ -636,19 +646,18 @@ def one_click():
                     "execution_time": "{:.2f}".format(test.execution_time),
                     "start_time": test.start_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "end_time": test.end_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "screenshots": test.screenshots.split(",") if test.screenshots else []  
-
+                    "screenshots": test.screenshots.split(",") if test.screenshots else []
                 }
                 for test in updated_test_history
             ]
-            pdf_filename = f"test_report_{file.filename}.pdf"  # Nama file PDF yang dibuat
+            pdf_filename = f"test_report_{file.filename}.pdf" 
             return jsonify({
                 "gherkin_content": gherkin_content,
                 "selenium_script": selenium_script,
                 "test_output": test_output,
                 "test_history": history_data,
                 "screenshots": screenshots,
-                "pdf_report": pdf_filename  
+                "pdf_report": pdf_filename
             })
 
         return render_template(
@@ -663,6 +672,7 @@ def one_click():
         )
 
     return render_template("one_click.html", test_history=test_history, gherkin_files=gherkin_files)
+
 
 # WebSocket event to handle real-time communication
 @socketio.on('run_test')
