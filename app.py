@@ -18,7 +18,6 @@ logging.basicConfig(
 # Inisialisasi Flask dan database
 app = Flask(__name__)
 app.config.from_object(Config)
-print(app.config)
 
 socketio = SocketIO(app)
 session_timestamp = app.config['SESSION_TIMESTAMP']
