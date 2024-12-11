@@ -185,7 +185,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         logging.info(f"Retrieved element - URL: {el.url}, Attribute: '{el.attribute}', Text: '{el.text_content}', XPath: {el.xpath}")
 
     # Gabungkan detail elemen
-    element_details = "\n".join([f"{el.attribute}" for el in elements])
+    element_details = "\n".join(set(el.attribute for el in elements))
     logging.info(f"Total elements retrieved: {len(element_details)}")
 
     # Buat template prompt
@@ -194,13 +194,40 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "Follow these coding guidelines:\n"
         "- Use **XPath** with **multiple `contains(@class, ...)` conditions** to locate button elements with complex class attributes.\n"
         "- Use `//input[@id` or CSS Selectors for element identification.\n"
-        "- For password and username use xpath with correct type \n"
+        "- For username and password fields, use XPath with `@type='text'` and `@type='password'` respectively.\n"
         "- Use XPath with attributes (if available) or CSS Selector. \n"
-        "- Use JavaScript Executor to click buttons or elements as required.\n"
-        "- Ensure modal pop-ups or overlays are handled correctly by scoping actions within the modal context.\n"
+        "- For input fields, prefer locating by the `@placeholder` attribute for clarity and stability.\n"
+        "- Use JavaScript Executor (`driver.execute_script()`) to click buttons or elements as required.\n"
+        "- Handle modal pop-ups or overlays correctly by scoping actions within the modal context if applicable.\n"
         "- Make sure to use `pytest.fail()` for failures, with descriptive error messages.\n\n"
         "- Use the URL specified in the Gherkin scenario for `driver.get()` instead of hardcoding.\n"
-        "- For assertions, validate the current URL (`driver.current_url`) rather than the driver title.\n\n"
+        "- For assertions, validate the current URL (`driver.current_url`) rather than the page title.\n\n"
+        "- For dropdown selections:\n"
+        "    - Send the desired text to the input field and press ENTER (`u'\\ue007'`) to choose the option.\n"
+        "    - Use explicit waits to ensure the dropdown field contains the correct text after selection.\n"
+        "- Ensure field interaction continues seamlessly to the next field once the current field is successfully filled.\n"
+        "- Ensure compatibility for fields with identical XPath by using indexes or context-aware locators.\n"
+        "- Add detailed logging or comments to describe each test step for better readability and maintainability.\n\n"
+        "- For cases where the dropdown requires additional actions:\n"
+        "    - Wait for the dropdown to become visible using explicit waits.\n"
+        "    - Use JavaScript Executor to interact with complex dropdowns.\n"
+        "    - Ensure the dropdown closes automatically or click outside of it to force closure before proceeding.\n\n"
+        "- Handle exceptions for timeouts or missing elements gracefully with `try-except` blocks, saving screenshots on failures.\n"
+        "- Save screenshots for each test step with descriptive filenames that reflect the step being executed.\n\n"
+        "Here is an example implementation:\n"
+        "```python\n"
+        "# Step : Enter Role\n"
+        "role_dropdown = wait_for_element(driver, By.XPATH, \"//div[contains(@class, 'n-base-selection') and contains(@class, 'n-base-selection-label')]\")\n"
+        "click_element_js(driver, role_dropdown)\n\n"
+        "role_input = wait_for_element(driver, By.XPATH, \"//div[contains(@class, 'n-base-selection')]/input\")\n"
+        "role_input.clear()\n"
+        "role_input.send_keys(\"Foreman\")\n"
+        "role_input.send_keys(u'\\ue007')\n"
+        "save_screenshot(driver, 'role_filled_and_enter_pressed')\n\n"
+        "body_element = driver.find_element(By.TAG_NAME, \"body\")\n"
+        "body_element.click()\n"
+        "save_screenshot(driver, 'role_dropdown_closed')\n\n"
+        "```"
         "Gherkin Scenario:\n"
         f"{gherkin_text}\n\n"
         "Available Elements:\n"
@@ -241,7 +268,6 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "  session_dir = os.path.join(base_dir, f'session_{timestamp}')\n"
         "  os.makedirs(session_dir, exist_ok=True)\n"
         "  # Save screenshots in the session folder\n"
-        "  driver.save_screenshot(os.path.join(session_dir, 'step_description.png'))\n"
         "  ```\n"
         "- Code Quality:\n"
         "  - Maintain consistent structure with clear variable naming and comments.\n"
@@ -258,7 +284,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
     messages = [{"role": "user", "content": template_prompt}]
     response = ""
     try:
-        for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
+        for message in client.chat_completion(messages, max_tokens=30000, stream=True, temperature=0.7, top_p=0.95):
             response += message.choices[0].delta.content
         logging.info("Selenium script generated successfully.")
     except Exception as e:
