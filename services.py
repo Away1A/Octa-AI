@@ -1,3 +1,5 @@
+import json
+import subprocess
 from constants import TEMPLATE_PROMPT, TEMPLATE_PROMPT_REPORT
 from huggingface_hub import InferenceClient
 import os
@@ -14,7 +16,11 @@ from flask_socketio import SocketIO, emit
 from sqlalchemy import func
 from fpdf import FPDF
 from pathlib import Path
+import os
+import datetime
 
+session_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+screenshot_folder = os.path.join("static", "screenshot", f'session_{session_timestamp}')
 client = InferenceClient("Qwen/Qwen2.5-Coder-32B-Instruct", token="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")
 
 def get_latest_session_folder(base_folder):

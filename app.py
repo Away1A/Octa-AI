@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 import logging
 from config import Config
 
+
 # Konfigurasi logging
 logging.basicConfig(
     level=logging.DEBUG,  # Set level ke DEBUG untuk mencatat semua level

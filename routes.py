@@ -1,3 +1,6 @@
+import datetime
+import glob
+import time
 from flask import Flask, request, render_template, jsonify, url_for, send_file
 from model import db, TestHistory, SeleniumScript, WebElementData
 import os
@@ -11,6 +14,11 @@ from flask_socketio import SocketIO, emit
 import logging
 from services import generate_selenium_script, scrape_elements, clean_code_with_regex, read_gherkin_file, get_element_xpath, get_latest_session_folder, run_pytest, generate_test_report
 from app import app
+import os
+import datetime
+
+session_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+screenshot_folder = os.path.join("static", "screenshot", f'session_{session_timestamp}')
 
 @app.route("/index", methods=["GET", "POST"])
 def index():

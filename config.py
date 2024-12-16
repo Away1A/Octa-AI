@@ -1,5 +1,5 @@
 import os
-import datetime
+import datetime 
 
 class Config:
     SECRET_KEY = 'garuda'
