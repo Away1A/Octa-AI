@@ -23,6 +23,7 @@ from sqlalchemy import func
 from fpdf import FPDF
 from pathlib import Path
 import logging
+from script import selenium_script
 
 
 # Konfigurasi logging
@@ -362,6 +363,14 @@ def run_tests():
             return "Please upload a valid .py file."
     return render_template("test.html", test_output=test_output)
 
+def calculate_lines(content, width, font_size):
+    # Get the width of the content (approximate)
+    line_height = font_size * 0.8  # Approximate line height (adjust as necessary)
+    max_width = width - 4  # Subtract padding
+    num_lines = (len(content) * font_size) / max_width
+    print(num_lines)
+    return max(1, int(num_lines))
+
 def generate_test_report(selenium_script, report_name, use_template=False):
     """
     Generate a test report using AI, run pytest to test the script, and save as a PDF.
@@ -374,6 +383,17 @@ def generate_test_report(selenium_script, report_name, use_template=False):
     Returns:
         str: Path to the generated PDF report.
     """
+
+    file_name = "test.py"
+    # with open(file_name, "w") as f:
+    #     f.write(selenium_script)
+
+    start_time = datetime.datetime.now()
+
+    report_data = run_pytest(file_name)
+    print(report_data)
+    
+    report_name = "test report1"
     # Validasi parameter
     if not selenium_script.strip():
         raise ValueError("Selenium script cannot be empty.")
@@ -383,6 +403,13 @@ def generate_test_report(selenium_script, report_name, use_template=False):
     # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
     test_cases, ai_report = analyze_script_with_ai(selenium_script)
 
+    for index, (test_case, details) in enumerate(test_cases.items()):
+        if index < len(report_data['tests']):
+            # Get the outcome from the report_data for the corresponding index
+            test_result = "Passed" if report_data['tests'][index]['outcome'] == "passed" else "Failed"
+            # Add the Test Result to the test_cases dictionary
+            details["Test Result"] = test_result
+    
     # Logging awal
     logging.info(f"Generating test report for script:\n{selenium_script[:200]}...")
 
@@ -400,33 +427,181 @@ def generate_test_report(selenium_script, report_name, use_template=False):
         pdf.set_font("Arial", style="B", size=14)
         pdf.cell(0, 10, f"Test Report: {report_name}", ln=True, align="C")
         pdf.set_font("Arial", size=10)  # Mengurangi ukuran font agar lebih kompak
-        
-        # Menambahkan header untuk tabel test case
-        pdf.set_fill_color(255, 223, 186)  # Warna latar belakang header (kuning terang)
-        pdf.cell(40, 10, 'Test Case', 1, 0, 'C', 1)  # Kolom Test Case
-        pdf.cell(60, 10, 'Description', 1, 0, 'C', 1)  # Kolom Description (lebih lebar)
-        pdf.cell(40, 10, 'Result', 1, 1, 'C', 1)  # Kolom Result
-        
+        pdf.ln(20)
+        available_width = 297 - 30  # 15 mm margin on each side
+
+        # Set the column widths as percentages of the available width
+        test_case_width = available_width * 0.2  # 40% for Test Case
+        description_width = available_width * 0.5  # 40% for Description
+        result_width = available_width * 0.3  # 10% for Result
+
+
+        try:
+            summary = report_data.get('summary', {})
+            passed = str(summary.get('passed', 'N/A'))  # Default to 'N/A' if key is missing
+            total = str(summary.get('total', 'N/A'))
+            collected = str(summary.get('collected', 'N/A'))
+            duration = str(round(report_data.get('duration', 'N/A'), 1))
+
+            pdf.set_x(110)
+            # Add the header row for the table
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(80, 10, "Summary", 1, 1, 'C', 1)
+
+            pdf.set_x(110)
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(20, 10, "Passed", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Total", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Collected", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Duration", 1, 1, 'C', 1)
+
+            pdf.set_x(110)
+            pdf.set_fill_color(255, 255, 255)
+            pdf.cell(20, 10, passed, 1, 0, 'L', 1)
+            pdf.cell(20, 10, total, 1, 0, 'L', 1)
+            pdf.cell(20, 10, collected, 1, 0, 'L', 1)
+            pdf.cell(20, 10, duration, 1, 1, 'L', 1) 
+
+            pdf.ln(10)
+
+        except Exception as e:
+            logging.error(f"Failed to save PDF: Failed to save summary {e}")
+            raise
+
+        # Add the header row for the table
+        pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+        pdf.cell(test_case_width, 10, "Test Case", 1, 0, 'C', 1)
+        pdf.cell(description_width, 10, "Description", 1, 0, 'C', 1)
+        pdf.cell(result_width, 10, "Result", 1, 1, 'C', 1)
+
+        # print(test_cases)
         # Menambahkan data tabel untuk setiap test case
-        for test_case in test_cases:
-            description = test_cases[test_case]  # Menyimpan deskripsi test case
-            
-            # Pewarnaan untuk baris alternatif (zebra striping)
-            if test_cases.index(test_case) % 2 == 0:
-                pdf.set_fill_color(255, 255, 255)  # Putih untuk baris genap
+        print(test_cases)
+        row_index = 0
+        for test_case, details in test_cases.items():
+            # Alternate row colors (zebra striping)
+            if row_index % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)  # White for even rows
             else:
-                pdf.set_fill_color(240, 240, 240)  # Abu-abu muda untuk baris ganjil
+                pdf.set_fill_color(240, 240, 240)  # Light gray for odd rows
             
-            # Menambahkan baris dengan hasil pengujian
-            pdf.cell(40, 10, test_case, 1, 0, 'L', 1)  # Kolom Test Case
+            # Extract descriptions and details
+            description = details.get('Description', 'N/A')
+            detailed_desc = f"{details.get('Actual Results', 'N/A')}"
+            test_result = f"{details.get('Test Result', 'N/A')}"
+
+            # Add cells for Test Case and Description
+            pdf.cell(test_case_width, 10, test_case, 1, 0, 'L', 1)  # Test Case name
+
+            pdf.cell(description_width, 10, description, 1, 0, 'L', 1)  # Description
             
-            # Gunakan multi_cell untuk deskripsi yang lebih panjang
-            pdf.multi_cell(60, 10, description, 1, 'L', 1)  # Kolom Description (multi_cell untuk wrapping)
+            pdf.cell(result_width, 10, test_result, 1, 1, 'L', 1)  # Wrap Result text
+          
+            row_index += 1
             
         # Menambahkan laporan dari AI setelah tabel
         pdf.ln(5)  # Jarak setelah tabel
-        pdf.multi_cell(0, 10, ai_report)
-        
+
+        label_width = available_width * 0.2  # 40% for Label (Detailed Description, Expected Results, etc.)
+        content_width = available_width * 0.8  # 60% for Content
+
+        # Add a new line for separation between tables
+        pdf.ln(10)
+
+        # Now, we add rows for the details of each test case
+        row_index = 0
+        for test_case, details in test_cases.items():
+            # Alternate row colors (zebra striping)
+            if row_index % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)  # White for even rows
+            else:
+                pdf.set_fill_color(240, 240, 240)  # Light gray for odd rows
+            
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(label_width, 10, "Description", 1, 0, 'C', 1)
+            pdf.cell(content_width, 10, "Details", 1, 1, 'C', 1)
+
+            pdf.set_fill_color(255, 255, 255)  # White for normal rows
+
+            # Detailed Description
+            # pdf.cell(available_width, 10, test_case, 1, 0, 'C', 1)
+            pdf.multi_cell(available_width, 10, test_case, 1, 'C', 1)
+
+            # Detailed Description
+            test_result = details.get("Test Result", "N/A")
+            pdf.cell(label_width, 10, "Test Result", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, test_result, 1, 'L', 1)
+
+            # Detailed Description
+            detailed_desc = details.get("Detailed Description", "N/A")
+            pdf.cell(label_width, 10, "Detailed Description", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, detailed_desc, 1, 'L', 1)
+            
+            # Expected Results
+            expected_desc = details.get("Expected Results", "N/A")
+
+            # Calculate the number of lines the content will span
+            lines = calculate_lines(expected_desc, content_width, 10)
+
+            # Set the height for the cell based on the number of lines
+            cell_height = 20 if lines > 1 else 10
+
+            pdf.cell(label_width, cell_height, "Expected Results", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, expected_desc, 1, 'L', 1)
+
+            # Actual Results
+            actual_desc = details.get("Actual Results", "N/A")
+            pdf.cell(label_width, 20, "Actual Results", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, actual_desc, 1, 'L', 1)
+
+            # Issues Found
+            issues_desc = details.get("Issues Found", "N/A")
+            pdf.cell(label_width, 10, "Issues Found", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, issues_desc, 1, 'L', 1)
+
+            # Recommendations
+            recommendations_desc = details.get("Recommendations", "N/A")
+            pdf.cell(label_width, 10, "Recommendations", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, recommendations_desc, 1, 'L', 1)
+
+            # Folder containing screenshots for the current test case
+            proof_image_folder = os.path.join("static", "screenshot", "session_20241217120324")
+
+            # Retrieve all valid image files
+            proof_images = [
+                os.path.join(proof_image_folder, image)
+                for image in sorted(os.listdir(proof_image_folder))
+                if image.endswith((".png", ".jpg", ".jpeg")) and image.startswith(f"login")
+            ]
+
+            # Dimensions for each image
+            image_width = 120  # Adjust as needed
+            image_height = 100  # Adjust as needed
+
+            if proof_images:
+                # Label column: spans the total height of all images
+                label_total_height = image_height * len(proof_images)
+
+                # Content column: Add all images
+                for index, image_path in enumerate(proof_images):
+                    if os.path.exists(image_path):
+                        # Add cell for the image to maintain structure
+                        pdf.cell(available_width, image_height + 10, "", 1, 0, 'C', 1)
+                        current_x = pdf.get_x() - available_width  # Align image with the cell
+                        current_y = pdf.get_y()  # Current vertical position
+                        
+                        # Insert the image at the correct coordinates
+                        pdf.image(image_path, x=current_x + 80, y=current_y + 2, w=image_width, h=image_height)
+
+                        # Move to the next line after each image
+                        pdf.ln(image_height)
+            else:
+                # If no images, show "No proof"
+                pdf.cell(content_width, 10, "No proof", 1, 1, 'C', 1)
+
+            # Add some spacing at the end of the block
+            pdf.ln(15)
+
         # Output file PDF
         pdf.output(str(pdf_file_path))
         logging.info(f"Test report saved as PDF: {pdf_file_path}")
@@ -450,13 +625,35 @@ def analyze_script_with_ai(selenium_script):
     template_prompt = (
         f"Analyze the following Selenium script and simulate its execution:\n\n"
         f"{selenium_script}\n\n"
-        "Identify all test cases in this script and generate a detailed test report with the following structure:\n"
-        "- **Test Case**: Name and description of the test case.\n"
-        "- **Expected Results**: Describe what the test case is intended to validate.\n"
-        "- **Actual Results**: Simulate the execution and provide a summary of the outcomes.\n"
-        "- **Issues Found**: Highlight any issues encountered during the test.\n"
-        "- **Recommendations**: Suggest fixes or improvements for the script.\n\n"
-        "Generate the report in a professional tone and also list the test cases identified in the script."
+        "Identify all test cases in this script and generate a detailed test report with the following structure. "
+        "Ensure the output uses the exact format below for easy parsing:\n\n"
+
+        "### Test Case Identification\n"
+        "1. **Test Case 1**: <Short name or title of the test case>.\n"
+        "2. **Test Case 2**: <Short name or title of the test case>.\n"
+        "3. **Test Case N**: <Short name or title of the test case>.\n\n"
+
+        "### Detailed Test Report\n"
+        "**Test Case 1**\n"
+        "- **Description**: <Detailed description of what this test case does>\n"
+        "- **Expected Results**: <What is expected to happen during this test>\n"
+        "- **Actual Results**: <Simulated results based on the Selenium script provided>\n"
+        "- **Issues Found**: <List any issues identified, or state 'None'>\n"
+        "- **Recommendations**: <Suggestions to fix issues or improve the script>\n"
+        "- **Test Result**: <Is the test case passing or failing>\n\n" 
+
+        "**Test Case 2**\n"
+        "- **Description**: <Detailed description of what this test case does>\n"
+        "- **Expected Results**: <What is expected to happen during this test>\n"
+        "- **Actual Results**: <Simulated results based on the Selenium script provided>\n"
+        "- **Issues Found**: <List any issues identified, or state 'None'>\n"
+        "- **Recommendations**: <Suggestions to fix issues or improve the script>\n"
+        "- **Test Result**: <Is the test case passing or failing>\n\n"
+
+        "Repeat this format for all identified test cases. "
+        "Ensure the report uses clear and professional language, with consistent formatting. "
+        "The 'Test Case Identification' section must use a numbered list, and the 'Detailed Test Report' section must "
+        "match the test cases listed above exactly."
     )
     
     # Memanggil model AI untuk menganalisis skrip
@@ -467,14 +664,36 @@ def analyze_script_with_ai(selenium_script):
     try:
         for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
             if "choices" in message:
-                ai_report += message.choices[0].delta.content
-                # Proses AI untuk mengidentifikasi test case
-                if "Test Case" in message.choices[0].delta.content:
-                    test_case_lines = message.choices[0].delta.content.split("\n")
-                    test_cases = {line.strip(): "Description here" for line in test_case_lines if line.strip()}
+                content = message.choices[0].delta.content
+                ai_report += content 
             else:
                 logging.warning(f"Unexpected response format: {message}")
-        
+
+        # Process the final ai_report after the streaming ends
+        test_case_pattern = r"^\d+\.\s\*\*(Test Case \d+)\*\*:\s*(.+)"
+        for line in ai_report.split("\n"):
+            match = re.match(test_case_pattern, line)
+            if match:
+                test_case_name = match.group(1)
+                test_case_desc = match.group(2)
+                test_cases[test_case_name] = {"Description": test_case_desc}
+
+        # Extract detailed report for each test case
+        detailed_report_pattern = r"\*\*(Test Case \d+)\*\*\n- \*\*Description\*\*: (.+?)\n- \*\*Expected Results\*\*: (.+?)\n- \*\*Actual Results\*\*: (.+?)\n- \*\*Issues Found\*\*: (.+?)\n- \*\*Recommendations\*\*: (.+?)\n"
+
+        detailed_reports = re.findall(detailed_report_pattern, ai_report, re.DOTALL)
+
+        for test_case, desc, expected, actual, issues, recommendations in detailed_reports:
+            if test_case in test_cases:
+                test_cases[test_case].update({
+                    "Detailed Description": desc,
+                    "Expected Results": expected,
+                    "Actual Results": actual,
+                    "Issues Found": issues,
+                    "Recommendations": recommendations,
+                })
+            else:
+                logging.warning(f"Unexpected response format: {message}")
         if not ai_report.strip():
             raise ValueError("Empty AI report generated.")
         
@@ -488,216 +707,229 @@ def analyze_script_with_ai(selenium_script):
 
 @app.route("/one_click", methods=["GET", "POST"])
 def one_click():
-    result = "failed"
-    test_output = ""
-    test_history = TestHistory.query.all()
-    gherkin_files = SeleniumScript.query.with_entities(SeleniumScript.filename).all()
-    gherkin_content = ""
-    selenium_script = ""
-    screenshots = []  # Variabel untuk menyimpan daftar screenshot
-    screenshot_base_folder = os.path.join("static", "screenshot")
-    test_history_entry = None  # Inisialisasi variabel sebelum digunakan
-    execution_time = 0
-
-
-    if request.method == "POST":
-        logging.info("Received POST request in one_click.")
-
-        # Mendapatkan file dan URL dari form
-        file = request.files.get("feature_file")
-        login_url = request.form.get("url")
-        target_url = request.form.get("target_url")
-
-        # Langkah 1: Memeriksa apakah login_url dan target_url sudah ada di WebElementData
-        existing_elements = WebElementData.query.filter_by(url=target_url).first()
-
-        if login_url and target_url and not existing_elements:
-            logging.info(f"Scraping elements for target_url: {target_url}")
-            scrape_elements(login_url, target_url, db.session)
-
-        # Langkah 2: Proses file .feature
-        if file and file.filename.endswith(".feature"):
-            logging.debug(f"Feature file uploaded: {file.filename}")
-            existing_script = SeleniumScript.query.filter_by(filename=file.filename).first()
-
-            if existing_script:
-                logging.info(f"Using existing script for {file.filename}.")
-                selenium_script = existing_script.script_content
-                test_output = "Using existing Selenium script from database."
-
-                # Buat file sementara untuk menjalankan script
-                file_name = "temp_selenium_test.py"
-                with open(file_name, "w") as f:
-                    f.write(selenium_script)
-
-                start_time = datetime.datetime.now()
-
-                # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
-                report_data = run_pytest(file_name)
-
-                # Simpan laporan JSON langsung tanpa pengecekan
-                test_output = report_data
-                result = "completed"  # Tetapkan status sebagai "completed"
-                execution_time = (datetime.datetime.now() - start_time).total_seconds()
-
-                    # Generate PDF report untuk hasil "passed"
-                report_name = file.filename.split('.')[0]
-                try:
-                            pdf_filename = generate_test_report(
-                                selenium_script,
-                                report_name,
-                                use_template=True
-                            )
-                            logging.info(f"Test report generated: {pdf_filename}")
-                except Exception as e:
-                            logging.error(f"Failed to generate test report: {e}")
-                            
-                # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
-                latest_folder = get_latest_session_folder(screenshot_base_folder)
-                if latest_folder:
-                    screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    while not screenshot_files:
-                        logging.debug("Waiting for screenshots to be saved...")
-                        time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
-                        screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                    screenshots = [
-                        url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
-                        for file in screenshot_files
-                    ]
-                    logging.info(f"Screenshots found: {screenshots}")
-
-                else:
-                    logging.warning("No session folders found.")
-
-                # Catat waktu selesai
-                end_time = datetime.datetime.now()
-
-                # Hitung waktu eksekusi
-                execution_time = (end_time - start_time).total_seconds()
-                logging.debug(f"Execution time: {execution_time} seconds.")
-
-            else:
-                # Jika tidak ada script yang ada di database, buat script baru
-                try:
-                    gherkin_content = file.read().decode("utf-8")
-                    logging.info(f"Feature file content read successfully: {file.filename}")
-
-                    use_template_prompt = "use_template_prompt" in request.form
-                    raw_selenium_script = generate_selenium_script(
-                        gherkin_content, login_url, target_url, use_template=use_template_prompt
-                    )
-                    cleaned_script = clean_code_with_regex(raw_selenium_script)
-                    selenium_script = cleaned_script
-
-                    # Buat file sementara untuk menjalankan script
-                    file_name = "temp_selenium_test.py"
-                    with open(file_name, "w") as f:
-                        f.write(cleaned_script)
-                        
-                    start_time = datetime.datetime.now()
-
-                    # Jalankan tes menggunakan pytest dan dapatkan laporan JSON
-                    report_data = run_pytest(file_name)
-
-                    # Simpan laporan JSON langsung tanpa pengecekan
-                    test_output = report_data
-                    result = "completed"  # Tetapkan status sebagai "completed"
-                    execution_time = (datetime.datetime.now() - start_time).total_seconds()
-                    
-                    # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
-                    latest_folder = get_latest_session_folder(screenshot_base_folder)
-                    if latest_folder:
-                        screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                        while not screenshot_files:
-                            logging.debug("Waiting for screenshots to be saved...")
-                            time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
-                            screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
-                        screenshots = [
-                            url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
-                            for file in screenshot_files
-                        ]
-                        logging.info(f"Screenshots found: {screenshots}")
-
-                    # Menyimpan hasil hanya jika "passed"
-                    if result == "passed":
-                        selenium_script_entry = SeleniumScript(
-                            filename=file.filename,
-                            script_content=cleaned_script,
-                            status="passed"
-                        )
-                        db.session.add(selenium_script_entry)
-
-                        # Generate PDF report untuk hasil "passed"
-                        report_name = file.filename.split('.')[0]
-                        try:
-                            pdf_filename = generate_test_report(
-                                selenium_script,
-                                report_name,
-                                use_template=True
-                            )
-                            logging.info(f"Test report generated: {pdf_filename}")
-                        except Exception as e:
-                            logging.error(f"Failed to generate test report: {e}")
-
-                    # Simpan hasil tes ke dalam TestHistory
-                    test_history_entry = TestHistory(
-                        filename=file.filename,
-                        result=result,
-                        execution_time=execution_time,
-                        start_time=start_time,
-                        end_time=datetime.datetime.now(),
-                        screenshots=",".join(screenshots)
-                    )
-                    db.session.add(test_history_entry)
-                    db.session.commit()
-
-                    os.remove(file_name)
-                    logging.debug(f"Temporary file {file_name} removed.")
-
-                except Exception as e:
-                    logging.error(f"Error processing uploaded file: {e}")
-                    return "Failed to process the uploaded feature file."
-
-        else:
-            logging.warning("Invalid file format or no file uploaded.")
-            return "Please upload a valid .feature file."
-
-        # Response untuk AJAX jika diminta
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            updated_test_history = TestHistory.query.order_by(TestHistory.start_time.desc()).all()
-            history_data = [
-                {
-                    "filename": test.filename,
-                    "result": test.result,
-                    "execution_time": "{:.2f}".format(test.execution_time),
-                    "start_time": test.start_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "end_time": test.end_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "screenshots": test.screenshots.split(",") if test.screenshots else []
-                }
-                for test in updated_test_history
-            ]
-            pdf_filename = f"test_report_{file.filename}.pdf" 
-            return jsonify({
-                "gherkin_content": gherkin_content,
-                "selenium_script": selenium_script,
-                "test_output": test_output,
-                "test_history": history_data,
-                "screenshots": screenshots,
-                "pdf_report": pdf_filename
-            })
-
-        return render_template(
-            "one_click.html",
-            test_history=test_history,
-            gherkin_files=gherkin_files,
-            gherkin_content=gherkin_content,
-            selenium_script=selenium_script,
-            test_output=test_output,
-            screenshots=screenshots,
-            pdf_report=pdf_filename,
+    report_name="test_report"
+    try:
+        pdf_filename = generate_test_report(
+            selenium_script,
+            report_name,
+            use_template=True
         )
+        logging.info(f"Test report generated: {pdf_filename}")
+    except Exception as e:
+        logging.error(f"Failed to generate test report: {e}")
 
-    return render_template("one_click.html", test_history=test_history, gherkin_files=gherkin_files)
+# @app.route("/one_click", methods=["GET", "POST"])
+# def one_click():
+#     result = "failed"
+#     test_output = ""
+#     test_history = TestHistory.query.all()
+#     gherkin_files = SeleniumScript.query.with_entities(SeleniumScript.filename).all()
+#     gherkin_content = ""
+#     selenium_script = ""
+#     screenshots = []  # Variabel untuk menyimpan daftar screenshot
+#     screenshot_base_folder = os.path.join("static", "screenshot")
+#     test_history_entry = None  # Inisialisasi variabel sebelum digunakan
+#     execution_time = 0
+
+
+#     if request.method == "POST":
+#         logging.info("Received POST request in one_click.")
+
+#         Mendapatkan file dan URL dari form
+#         file = request.files.get("feature_file")
+#         login_url = request.form.get("url")
+#         target_url = request.form.get("target_url")
+
+#         Langkah 1: Memeriksa apakah login_url dan target_url sudah ada di WebElementData
+#         existing_elements = WebElementData.query.filter_by(url=target_url).first()
+
+#         if login_url and target_url and not existing_elements:
+#             logging.info(f"Scraping elements for target_url: {target_url}")
+#             scrape_elements(login_url, target_url, db.session)
+
+#         Langkah 2: Proses file .feature
+#         if file and file.filename.endswith(".feature"):
+#             logging.debug(f"Feature file uploaded: {file.filename}")
+#             existing_script = SeleniumScript.query.filter_by(filename=file.filename).first()
+
+#             if existing_script:
+#                 logging.info(f"Using existing script for {file.filename}.")
+#                 selenium_script = existing_script.script_content
+#                 test_output = "Using existing Selenium script from database."
+
+#                 Buat file sementara untuk menjalankan script
+#                 file_name = "temp_selenium_test.py"
+#                 with open(file_name, "w") as f:
+#                     f.write(selenium_script)
+
+#                 start_time = datetime.datetime.now()
+
+#                 Jalankan tes menggunakan pytest dan dapatkan laporan JSON
+#                 report_data = run_pytest(file_name)
+
+#                 Simpan laporan JSON langsung tanpa pengecekan
+#                 test_output = report_data
+#                 result = "completed"  # Tetapkan status sebagai "completed"
+#                 execution_time = (datetime.datetime.now() - start_time).total_seconds()
+
+#                     Generate PDF report untuk hasil "passed"
+#                 report_name = file.filename.split('.')[0]
+#                 try:
+#                             pdf_filename = generate_test_report(
+#                                 selenium_script,
+#                                 report_name,
+#                                 use_template=True
+#                             )
+#                             logging.info(f"Test report generated: {pdf_filename}")
+#                 except Exception as e:
+#                             logging.error(f"Failed to generate test report: {e}")
+                            
+#                 Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
+#                 latest_folder = get_latest_session_folder(screenshot_base_folder)
+#                 if latest_folder:
+#                     screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
+#                     while not screenshot_files:
+#                         logging.debug("Waiting for screenshots to be saved...")
+#                         time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
+#                         screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
+#                     screenshots = [
+#                         url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
+#                         for file in screenshot_files
+#                     ]
+#                     logging.info(f"Screenshots found: {screenshots}")
+
+#                 else:
+#                     logging.warning("No session folders found.")
+
+#                 Catat waktu selesai
+#                 end_time = datetime.datetime.now()
+
+#                 Hitung waktu eksekusi
+#                 execution_time = (end_time - start_time).total_seconds()
+#                 logging.debug(f"Execution time: {execution_time} seconds.")
+
+#             else:
+#                 Jika tidak ada script yang ada di database, buat script baru
+#                 try:
+#                     gherkin_content = file.read().decode("utf-8")
+#                     logging.info(f"Feature file content read successfully: {file.filename}")
+
+#                     use_template_prompt = "use_template_prompt" in request.form
+#                     raw_selenium_script = generate_selenium_script(
+#                         gherkin_content, login_url, target_url, use_template=use_template_prompt
+#                     )
+#                     cleaned_script = clean_code_with_regex(raw_selenium_script)
+#                     selenium_script = cleaned_script
+
+#                     Buat file sementara untuk menjalankan script
+#                     file_name = "temp_selenium_test.py"
+#                     with open(file_name, "w") as f:
+#                         f.write(cleaned_script)
+                        
+#                     start_time = datetime.datetime.now()
+
+#                     Jalankan tes menggunakan pytest dan dapatkan laporan JSON
+#                     report_data = run_pytest(file_name)
+
+#                     Simpan laporan JSON langsung tanpa pengecekan
+#                     test_output = report_data
+#                     result = "completed"  # Tetapkan status sebagai "completed"
+#                     execution_time = (datetime.datetime.now() - start_time).total_seconds()
+                    
+#                     Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
+#                     latest_folder = get_latest_session_folder(screenshot_base_folder)
+#                     if latest_folder:
+#                         screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
+#                         while not screenshot_files:
+#                             logging.debug("Waiting for screenshots to be saved...")
+#                             time.sleep(1)  # Tunggu sebentar sebelum mencoba lagi
+#                             screenshot_files = glob.glob(os.path.join(latest_folder, "*.png"))
+#                         screenshots = [
+#                             url_for('static', filename=os.path.relpath(file, start="static").replace("\\", "/"))
+#                             for file in screenshot_files
+#                         ]
+#                         logging.info(f"Screenshots found: {screenshots}")
+
+#                     Menyimpan hasil hanya jika "passed"
+#                     if result == "passed":
+#                         selenium_script_entry = SeleniumScript(
+#                             filename=file.filename,
+#                             script_content=cleaned_script,
+#                             status="passed"
+#                         )
+#                         db.session.add(selenium_script_entry)
+
+#                         Generate PDF report untuk hasil "passed"
+#                         report_name = file.filename.split('.')[0]
+#                         try:
+#                             pdf_filename = generate_test_report(
+#                                 selenium_script,
+#                                 report_name,
+#                                 use_template=True
+#                             )
+#                             logging.info(f"Test report generated: {pdf_filename}")
+#                         except Exception as e:
+#                             logging.error(f"Failed to generate test report: {e}")
+
+#                     Simpan hasil tes ke dalam TestHistory
+#                     test_history_entry = TestHistory(
+#                         filename=file.filename,
+#                         result=result,
+#                         execution_time=execution_time,
+#                         start_time=start_time,
+#                         end_time=datetime.datetime.now(),
+#                         screenshots=",".join(screenshots)
+#                     )
+#                     db.session.add(test_history_entry)
+#                     db.session.commit()
+
+#                     os.remove(file_name)
+#                     logging.debug(f"Temporary file {file_name} removed.")
+
+#                 except Exception as e:
+#                     logging.error(f"Error processing uploaded file: {e}")
+#                     return "Failed to process the uploaded feature file."
+
+#         else:
+#             logging.warning("Invalid file format or no file uploaded.")
+#             return "Please upload a valid .feature file."
+
+#         Response untuk AJAX jika diminta
+#         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+#             updated_test_history = TestHistory.query.order_by(TestHistory.start_time.desc()).all()
+#             history_data = [
+#                 {
+#                     "filename": test.filename,
+#                     "result": test.result,
+#                     "execution_time": "{:.2f}".format(test.execution_time),
+#                     "start_time": test.start_time.strftime("%Y-%m-%d %H:%M:%S"),
+#                     "end_time": test.end_time.strftime("%Y-%m-%d %H:%M:%S"),
+#                     "screenshots": test.screenshots.split(",") if test.screenshots else []
+#                 }
+#                 for test in updated_test_history
+#             ]
+#             pdf_filename = f"test_report_{file.filename}.pdf" 
+#             return jsonify({
+#                 "gherkin_content": gherkin_content,
+#                 "selenium_script": selenium_script,
+#                 "test_output": test_output,
+#                 "test_history": history_data,
+#                 "screenshots": screenshots,
+#                 "pdf_report": pdf_filename
+#             })
+
+#         return render_template(
+#             "one_click.html",
+#             test_history=test_history,
+#             gherkin_files=gherkin_files,
+#             gherkin_content=gherkin_content,
+#             selenium_script=selenium_script,
+#             test_output=test_output,
+#             screenshots=screenshots,
+#             pdf_report=pdf_filename,
+#         )
+
+#     return render_template("one_click.html", test_history=test_history, gherkin_files=gherkin_files)
 
 
 # WebSocket event to handle real-time communication
