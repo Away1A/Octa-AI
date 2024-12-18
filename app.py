@@ -199,6 +199,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "- Use JavaScript Executor (`driver.execute_script()`) to click buttons or elements as required.\n"
         "- Make sure to use `pytest.fail()` for failures, with descriptive error messages.\n\n"
         "- Use the URL specified in the Gherkin scenario for `driver.get()` instead of hardcoding.\n"
+        "- Make sure radio label like example: requestor_source_radio = wait_for_element(driver, By.XPATH, '(//div[contains(@class, 'n-radio__label') and contains(text(), 'Active Directory')])[2]'') \n"
         "- login_button = wait_for_element(driver, By.XPATH, '//button[contains(@class, 'n-button') and contains(@class, 'n-button--success-type')]') \n"
         "- For assertions, validate the current URL (`driver.current_url`) rather than the page title.\n\n"
         "- For dropdown selections:\n"
@@ -213,20 +214,6 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
         "    - Ensure the dropdown closes automatically or click outside of it to force closure before proceeding.\n\n"
         "- No Need to ensure the dropdown field is filled.\n"
         "- Save screenshots for each test step with descriptive filenames that reflect the step being executed.\n\n"
-        "Here is an example implementation about step form:\n"
-        "```python\n"
-        "# Step : Enter Role\n"
-        "role_dropdown = wait_for_element(driver, By.XPATH, \"//div[contains(@class, 'n-base-selection') and contains(@class, 'n-base-selection-label')]\")\n"
-        "click_element_js(driver, role_dropdown)\n\n"
-        "role_input = wait_for_element(driver, By.XPATH, \"//div[contains(@class, 'n-base-selection')]/input\")\n"
-        "role_input.clear()\n"
-        "role_input.send_keys(\"Foreman\")\n"
-        "role_input.send_keys(u'\\ue007')\n"
-        "save_screenshot(driver, 'role_filled_and_enter_pressed')\n\n"
-        "body_element = driver.find_element(By.TAG_NAME, \"body\")\n"
-        "body_element.click()\n"
-        "save_screenshot(driver, 'role_dropdown_closed')\n\n"
-        "```"
         "- follow this example for another next step, example '(//div[contains(@class, 'n-base-selection') and contains(@class, 'n-base-selection-label')])[2]', '(//div[contains(@class, 'n-base-selection')]/input)[2]'. \n"
         "Gherkin Scenario:\n"
         f"{gherkin_text}\n\n"
@@ -382,7 +369,7 @@ def generate_test_report(selenium_script, report_name, use_template=False):
 
     # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
     test_cases, ai_report = analyze_script_with_ai(selenium_script)
-
+    print(ai_report)
     # Logging awal
     logging.info(f"Generating test report for script:\n{selenium_script[:200]}...")
 
