@@ -159,7 +159,6 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
 
     # Gabungkan detail elemen
     element_details = "\n".join(set(el.attribute for el in elements))
-    print(element_details)
     logging.info(f"Total elements retrieved: {len(element_details)}")
 
     # Buat template prompt
@@ -174,7 +173,6 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
             template_prompt += f"\n\ngive log for every step and Example script:\n\n{example_script.script_content}"
             logging.debug("Template prompt with example script found and added.")
 
-    print(template_prompt)
     messages = [{"role": "user", "content": template_prompt}]
     response = ""
     try:
@@ -220,7 +218,14 @@ def run_pytest(file_name):
         logging.error(f"Failed to run pytest on {file_name}: {e}")
         return None
 
-def generate_test_report(selenium_script, report_name, use_template=False):
+def calculate_lines(content, width, font_size):
+    # Get the width of the content (approximate)
+    line_height = font_size * 0.8  # Approximate line height (adjust as necessary)
+    max_width = width - 4  # Subtract padding
+    num_lines = (len(content) * font_size) / max_width
+    return max(1, int(num_lines))
+
+def generate_test_report(selenium_script, report_name, report_data, use_template=False):
     """
     Generate a test report using AI, run pytest to test the script, and save as a PDF.
     
@@ -232,6 +237,7 @@ def generate_test_report(selenium_script, report_name, use_template=False):
     Returns:
         str: Path to the generated PDF report.
     """
+
     # Validasi parameter
     if not selenium_script.strip():
         raise ValueError("Selenium script cannot be empty.")
@@ -240,7 +246,16 @@ def generate_test_report(selenium_script, report_name, use_template=False):
 
     # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
     test_cases, ai_report = analyze_script_with_ai(selenium_script)
+    print("testttttttttttcaseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+    print("Test Cases:", test_cases)
 
+    for index, (test_case, details) in enumerate(test_cases.items()):
+        if index < len(report_data['tests']):
+            # Get the outcome from the report_data for the corresponding index
+            test_result = "Passed" if report_data['tests'][index]['outcome'] == "passed" else "Failed"
+            # Add the Test Result to the test_cases dictionary
+            details["Test Result"] = test_result
+    
     # Logging awal
     logging.info(f"Generating test report for script:\n{selenium_script[:200]}...")
 
@@ -258,33 +273,178 @@ def generate_test_report(selenium_script, report_name, use_template=False):
         pdf.set_font("Arial", style="B", size=14)
         pdf.cell(0, 10, f"Test Report: {report_name}", ln=True, align="C")
         pdf.set_font("Arial", size=10)  # Mengurangi ukuran font agar lebih kompak
-        
-        # Menambahkan header untuk tabel test case
-        pdf.set_fill_color(255, 223, 186)  # Warna latar belakang header (kuning terang)
-        pdf.cell(40, 10, 'Test Case', 1, 0, 'C', 1)  # Kolom Test Case
-        pdf.cell(60, 10, 'Description', 1, 0, 'C', 1)  # Kolom Description (lebih lebar)
-        pdf.cell(40, 10, 'Result', 1, 1, 'C', 1)  # Kolom Result
-        
+        pdf.ln(20)
+        available_width = 297 - 30  # 15 mm margin on each side
+
+        # Set the column widths as percentages of the available width
+        test_case_width = available_width * 0.2  # 20% for Test Case
+        description_width = available_width * 0.5  # 50% for Description
+        result_width = available_width * 0.3  # 30% for Result
+
+        try:
+            summary = report_data.get('summary', {})
+            passed = str(summary.get('passed', 'N/A'))  # Default to 'N/A' if key is missing
+            total = str(summary.get('total', 'N/A'))
+            collected = str(summary.get('collected', 'N/A'))
+            duration = str(round(report_data.get('duration', 'N/A'), 1))
+
+            pdf.set_x(110)
+            # Add the header row for the table
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(80, 10, "Summary", 1, 1, 'C', 1)
+
+            pdf.set_x(110)
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(20, 10, "Passed", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Total", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Collected", 1, 0, 'C', 1)
+            pdf.cell(20, 10, "Duration", 1, 1, 'C', 1)
+
+            pdf.set_x(110)
+            pdf.set_fill_color(255, 255, 255)
+            pdf.cell(20, 10, passed, 1, 0, 'L', 1)
+            pdf.cell(20, 10, total, 1, 0, 'L', 1)
+            pdf.cell(20, 10, collected, 1, 0, 'L', 1)
+            pdf.cell(20, 10, duration, 1, 1, 'L', 1) 
+
+            pdf.ln(10)
+
+        except Exception as e:
+            logging.error(f"Failed to save PDF: Failed to save summary {e}")
+            raise
+
+        # Add the header row for the table
+        pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+        pdf.cell(test_case_width, 10, "Test Case", 1, 0, 'C', 1)
+        pdf.cell(description_width, 10, "Description", 1, 0, 'C', 1)
+        pdf.cell(result_width, 10, "Result", 1, 1, 'C', 1)
+
         # Menambahkan data tabel untuk setiap test case
-        for test_case in test_cases:
-            description = test_cases[test_case]  # Menyimpan deskripsi test case
-            
-            # Pewarnaan untuk baris alternatif (zebra striping)
-            if test_cases.index(test_case) % 2 == 0:
-                pdf.set_fill_color(255, 255, 255)  # Putih untuk baris genap
+        row_index = 0
+        for test_case, details in test_cases.items():
+            # Alternate row colors (zebra striping)
+            if row_index % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)  # White for even rows
             else:
-                pdf.set_fill_color(240, 240, 240)  # Abu-abu muda untuk baris ganjil
+                pdf.set_fill_color(240, 240, 240)  # Light gray for odd rows
             
-            # Menambahkan baris dengan hasil pengujian
-            pdf.cell(40, 10, test_case, 1, 0, 'L', 1)  # Kolom Test Case
+            # Extract descriptions and details
+            description = details.get('Description', 'N/A')
+            detailed_desc = f"{details.get('Actual Results', 'N/A')}"
+            test_result = f"{details.get('Test Result', 'N/A')}"
+
+            # Add cells for Test Case and Description
+            pdf.cell(test_case_width, 10, test_case, 1, 0, 'L', 1)  # Test Case name
+
+            pdf.cell(description_width, 10, description, 1, 0, 'L', 1)  # Description
             
-            # Gunakan multi_cell untuk deskripsi yang lebih panjang
-            pdf.multi_cell(60, 10, description, 1, 'L', 1)  # Kolom Description (multi_cell untuk wrapping)
+            pdf.cell(result_width, 10, test_result, 1, 1, 'L', 1)  # Wrap Result text
+          
+            row_index += 1
             
         # Menambahkan laporan dari AI setelah tabel
         pdf.ln(5)  # Jarak setelah tabel
-        pdf.multi_cell(0, 10, ai_report)
-        
+
+        label_width = available_width * 0.2  # 20% for Label (Detailed Description, Expected Results, etc.)
+        content_width = available_width * 0.8  # 80% for Content
+
+        # Add a new line for separation between tables
+        pdf.ln(10)
+
+        # Now, we add rows for the details of each test case
+        row_index = 0
+        for test_case, details in test_cases.items():
+            # Alternate row colors (zebra striping)
+            if row_index % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)  # White for even rows
+            else:
+                pdf.set_fill_color(240, 240, 240)  # Light gray for odd rows
+            
+            pdf.set_fill_color(255, 223, 186)  # Light yellow background for header
+            pdf.cell(label_width, 10, "Description", 1, 0, 'C', 1)
+            pdf.cell(content_width, 10, "Details", 1, 1, 'C', 1)
+
+            pdf.set_fill_color(255, 255, 255)  # White for normal rows
+
+            # Detailed Description
+            # pdf.cell(available_width, 10, test_case, 1, 0, 'C', 1)
+            pdf.multi_cell(available_width, 10, test_case, 1, 'C', 1)
+
+            # Detailed Description
+            test_result = details.get("Test Result", "N/A")
+            pdf.cell(label_width, 10, "Test Result", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, test_result, 1, 'L', 1)
+
+            # Detailed Description
+            detailed_desc = details.get("Detailed Description", "N/A")
+            pdf.cell(label_width, 10, "Detailed Description", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, detailed_desc, 1, 'L', 1)
+            
+            # Expected Results
+            expected_desc = details.get("Expected Results", "N/A")
+
+            # Calculate the number of lines the content will span
+            lines = calculate_lines(expected_desc, content_width, 10)
+
+            # Set the height for the cell based on the number of lines
+            cell_height = 20 if lines > 1 else 10
+
+            pdf.cell(label_width, cell_height, "Expected Results", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, expected_desc, 1, 'L', 1)
+
+            # Actual Results
+            actual_desc = details.get("Actual Results", "N/A")
+            pdf.cell(label_width, 20, "Actual Results", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, actual_desc, 1, 'L', 1)
+
+            # Issues Found
+            issues_desc = details.get("Issues Found", "N/A")
+            pdf.cell(label_width, 10, "Issues Found", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, issues_desc, 1, 'L', 1)
+
+            # Recommendations
+            recommendations_desc = details.get("Recommendations", "N/A")
+            pdf.cell(label_width, 10, "Recommendations", 1, 0, 'L', 1)
+            pdf.multi_cell(content_width, 10, recommendations_desc, 1, 'L', 1)
+
+            # Folder containing screenshots for the current test case
+            proof_image_folder = os.path.join("static", "screenshot", "session_20241218114655")
+
+            # Retrieve all valid image files
+            proof_images = [
+                os.path.join(proof_image_folder, image)
+                for image in sorted(os.listdir(proof_image_folder))
+                if image.endswith((".png", ".jpg", ".jpeg")) and image.startswith(f"login") # Adjust condition
+            ]
+
+            # Dimensions for each image
+            image_width = 120  # Adjust as needed
+            image_height = 100  # Adjust as needed
+
+            if proof_images:
+                # Label column: spans the total height of all images
+                label_total_height = image_height * len(proof_images)
+
+                # Content column: Add all images
+                for index, image_path in enumerate(proof_images):
+                    if os.path.exists(image_path):
+                        # Add cell for the image to maintain structure
+                        pdf.cell(available_width, image_height + 10, "", 1, 0, 'C', 1)
+                        current_x = pdf.get_x() - available_width  # Align image with the cell
+                        current_y = pdf.get_y()  # Current vertical position
+                        
+                        # Insert the image at the correct coordinates
+                        pdf.image(image_path, x=current_x + 80, y=current_y + 2, w=image_width, h=image_height)
+
+                        # Move to the next line after each image
+                        pdf.ln(image_height)
+            else:
+                # If no images, show "No proof"
+                pdf.cell(content_width, 10, "No proof", 1, 1, 'C', 1)
+
+            # Add some spacing at the end of the block
+            pdf.ln(15)
+
         # Output file PDF
         pdf.output(str(pdf_file_path))
         logging.info(f"Test report saved as PDF: {pdf_file_path}")
@@ -304,7 +464,6 @@ def analyze_script_with_ai(selenium_script):
     Returns:
         tuple: A tuple containing a list of test cases and the AI-generated test report.
     """
-    
     # Memanggil model AI untuk menganalisis skrip
     messages = [{"role": "user", "content": TEMPLATE_PROMPT_REPORT.format(selenium_script=selenium_script)}]
     ai_report = ""
@@ -313,14 +472,35 @@ def analyze_script_with_ai(selenium_script):
     try:
         for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
             if "choices" in message:
-                ai_report += message.choices[0].delta.content
-                # Proses AI untuk mengidentifikasi test case
-                if "Test Case" in message.choices[0].delta.content:
-                    test_case_lines = message.choices[0].delta.content.split("\n")
-                    test_cases = {line.strip(): "Description here" for line in test_case_lines if line.strip()}
+                content = message.choices[0].delta.content
+                ai_report += content 
             else:
                 logging.warning(f"Unexpected response format: {message}")
-        
+
+        # Process the final ai_report after the streaming ends
+        test_case_pattern = r"^\d+\.\s\*\*(Test Case \d+)\*\*:\s*(.+)"
+        for line in ai_report.split("\n"):
+            match = re.match(test_case_pattern, line)
+            if match:
+                test_case_name = match.group(1)
+                test_case_desc = match.group(2)
+                test_cases[test_case_name] = {"Description": test_case_desc}
+
+        # Extract detailed report for each test case
+        detailed_report_pattern = r"#### Test Case (\d+)\n- \*\*Description\*\*: (.+?)\n- \*\*Expected Results\*\*: (.+?)\n- \*\*Actual Results\*\*: (.+?)\n- \*\*Issues Found\*\*: (.+?)\n- \*\*Recommendations\*\*: (.+?)\n-"
+
+        detailed_reports = re.findall(detailed_report_pattern, ai_report, re.DOTALL)
+        for test_case, desc, expected, actual, issues, recommendations in detailed_reports:
+            if test_case in test_cases:
+                test_cases[test_case].update({
+                    "Detailed Description": desc,
+                    "Expected Results": expected,
+                    "Actual Results": actual,
+                    "Issues Found": issues,
+                    "Recommendations": recommendations,
+                })
+            else:
+                logging.warning(f"Unexpected response format: {message}")
         if not ai_report.strip():
             raise ValueError("Empty AI report generated.")
         

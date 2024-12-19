@@ -112,14 +112,15 @@ def one_click():
                     # Generate PDF report untuk hasil "passed"
                 report_name = file.filename.split('.')[0]
                 try:
-                            pdf_filename = generate_test_report(
-                                selenium_script,
-                                report_name,
-                                use_template=True
-                            )
-                            logging.info(f"Test report generated: {pdf_filename}")
+                    pdf_filename = generate_test_report(
+                        selenium_script,
+                        report_name,
+                        report_data,
+                        use_template=True
+                    )
+                    logging.info(f"Test report generated: {pdf_filename}")
                 except Exception as e:
-                            logging.error(f"Failed to generate test report: {e}")
+                    logging.error(f"Failed to generate test report: {e}")
                             
                 # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                 latest_folder = get_latest_session_folder(screenshot_base_folder)
@@ -157,7 +158,6 @@ def one_click():
                     )
                     cleaned_script = clean_code_with_regex(raw_selenium_script)
                     selenium_script = cleaned_script
-
                     # Buat file sementara untuk menjalankan script
                     file_name = "temp_selenium_test.py"
                     with open(file_name, "w") as f:
@@ -172,7 +172,6 @@ def one_click():
                     test_output = report_data
                     result = "completed"  # Tetapkan status sebagai "completed"
                     execution_time = (datetime.datetime.now() - start_time).total_seconds()
-                    
                     # Menunggu sampai screenshot tersedia dan menyimpannya ke dalam database
                     latest_folder = get_latest_session_folder(screenshot_base_folder)
                     if latest_folder:
@@ -186,7 +185,6 @@ def one_click():
                             for file in screenshot_files
                         ]
                         logging.info(f"Screenshots found: {screenshots}")
-
                     # Menyimpan hasil hanya jika "passed"
                     if result == "passed":
                         selenium_script_entry = SeleniumScript(
@@ -207,7 +205,6 @@ def one_click():
                             logging.info(f"Test report generated: {pdf_filename}")
                         except Exception as e:
                             logging.error(f"Failed to generate test report: {e}")
-
                     # Simpan hasil tes ke dalam TestHistory
                     test_history_entry = TestHistory(
                         filename=file.filename,
@@ -222,7 +219,6 @@ def one_click():
 
                     os.remove(file_name)
                     logging.debug(f"Temporary file {file_name} removed.")
-
                 except Exception as e:
                     logging.error(f"Error processing uploaded file: {e}")
                     return "Failed to process the uploaded feature file."
