@@ -271,7 +271,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
     messages = [{"role": "user", "content": template_prompt}]
     response = ""
     try:
-        for message in client.chat_completion(messages, max_tokens=30000, stream=True, temperature=0.7, top_p=0.95):
+        for message in client.chat_completion(messages, max_tokens=50000, stream=True, temperature=0.7, top_p=0.95):
             response += message.choices[0].delta.content
         logging.info("Selenium script generated successfully.")
     except Exception as e:
