@@ -97,7 +97,7 @@ TEMPLATE_PROMPT_REPORT = """
     3. **Test Case N**: <Short name or title of the test case>.
 
     ### Detailed Test Report
-    Test Case 1
+    **Test Case 1**
     - **Description**: <Detailed description of what this test case does>
     - **Expected Results**: <What is expected to happen during this test>
     - **Actual Results**: <Simulated results based on the Selenium script provided>
@@ -105,7 +105,7 @@ TEMPLATE_PROMPT_REPORT = """
     - **Recommendations**: <Suggestions to fix issues or improve the script>
     - **Test Result**: <Is the test case passing or failing>
 
-    Test Case 2
+    **Test Case 2**
     - **Description**: <Detailed description of what this test case does>
     - **Expected Results**: <What is expected to happen during this test>
     - **Actual Results**: <Simulated results based on the Selenium script provided>

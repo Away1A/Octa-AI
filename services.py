@@ -246,8 +246,6 @@ def generate_test_report(selenium_script, report_name, report_data, use_template
 
     # Langkah 1: Menganalisis script untuk menemukan test case menggunakan AI
     test_cases, ai_report = analyze_script_with_ai(selenium_script)
-    print("testttttttttttcaseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-    print("Test Cases:", test_cases)
 
     for index, (test_case, details) in enumerate(test_cases.items()):
         if index < len(report_data['tests']):
@@ -408,7 +406,7 @@ def generate_test_report(selenium_script, report_name, report_data, use_template
             pdf.multi_cell(content_width, 10, recommendations_desc, 1, 'L', 1)
 
             # Folder containing screenshots for the current test case
-            proof_image_folder = os.path.join("static", "screenshot", "session_20241218114655")
+            proof_image_folder = os.path.join("static", "screenshot", f"session_{session_timestamp}")
 
             # Retrieve all valid image files
             proof_images = [
@@ -487,7 +485,7 @@ def analyze_script_with_ai(selenium_script):
                 test_cases[test_case_name] = {"Description": test_case_desc}
 
         # Extract detailed report for each test case
-        detailed_report_pattern = r"#### Test Case (\d+)\n- \*\*Description\*\*: (.+?)\n- \*\*Expected Results\*\*: (.+?)\n- \*\*Actual Results\*\*: (.+?)\n- \*\*Issues Found\*\*: (.+?)\n- \*\*Recommendations\*\*: (.+?)\n-"
+        detailed_report_pattern = r"\*\*(Test Case \d+)\*\*\n- \*\*Description\*\*: (.+?)\n- \*\*Expected Results\*\*: (.+?)\n- \*\*Actual Results\*\*: (.+?)\n- \*\*Issues Found\*\*: (.+?)\n- \*\*Recommendations\*\*: (.+?)\n"
 
         detailed_reports = re.findall(detailed_report_pattern, ai_report, re.DOTALL)
         for test_case, desc, expected, actual, issues, recommendations in detailed_reports:
