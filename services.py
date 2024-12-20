@@ -405,8 +405,10 @@ def generate_test_report(selenium_script, report_name, report_data, use_template
             pdf.cell(label_width, 10, "Recommendations", 1, 0, 'L', 1)
             pdf.multi_cell(content_width, 10, recommendations_desc, 1, 'L', 1)
 
+            screenshot_base_folder = os.path.join("static", "screenshot")
+            latest_folder = get_latest_session_folder(screenshot_base_folder)
             # Folder containing screenshots for the current test case
-            proof_image_folder = os.path.join("static", "screenshot", f"session_{session_timestamp}")
+            proof_image_folder = os.path.join(latest_folder)
 
             # Retrieve all valid image files
             proof_images = [
@@ -438,7 +440,7 @@ def generate_test_report(selenium_script, report_name, report_data, use_template
                         pdf.ln(image_height)
             else:
                 # If no images, show "No proof"
-                pdf.cell(content_width, 10, "No proof", 1, 1, 'C', 1)
+                pdf.cell(available_width, 10, "No proof", 1, 1, 'C', 1)
 
             # Add some spacing at the end of the block
             pdf.ln(15)
