@@ -37,6 +37,7 @@ TEMPLATE_PROMPT = """
     Gherkin Scenario:
     {gherkin_text}
 
+
     Available Elements:
     {element_details}
 
