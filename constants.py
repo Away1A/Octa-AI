@@ -32,7 +32,7 @@ TEMPLATE_PROMPT = """
         Example: 
         `(//div[contains(@class, 'n-base-selection') and contains(@class, 'n-base-selection-label')])[2]`, `(//div[contains(@class, 'n-base-selection')]/input)[2]`.
 
-    - Save screenshots for each test step with descriptive filenames that reflect the step being executed.
+    - Meke sure Save screenshots for each test step with descriptive filenames that reflect the step being executed.
 
     Gherkin Scenario:
     {gherkin_text}
