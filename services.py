@@ -164,7 +164,8 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
     # Buat template prompt
     template_prompt = TEMPLATE_PROMPT.format(
         gherkin_text=gherkin_text,
-        element_details=element_details
+        element_details=element_details,
+        timestamp=session_timestamp
     )
 
     if use_template:
@@ -174,6 +175,7 @@ def generate_selenium_script(gherkin_text, login_url, target_url, use_template=F
             logging.debug("Template prompt with example script found and added.")
 
     messages = [{"role": "user", "content": template_prompt}]
+    print(template_prompt)
     response = ""
     try:
         for message in client.chat_completion(messages, max_tokens=3000, stream=True, temperature=0.7, top_p=0.95):
